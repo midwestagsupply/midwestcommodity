@@ -1,0 +1,8 @@
+# Everything on this site is meant to be found. Nothing is disallowed.
+# The prices, the hours and the drying schedule are the whole point of
+# the page, so they are plain HTML and every crawler is welcome to them.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://midwestcommodity.com/sitemap.xml

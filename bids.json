@@ -1,0 +1,13 @@
+{
+  "schema": "emmert-cash-bids/1",
+  "generated": "2026-08-17T16:48:59.624Z",
+  "observed": null,
+  "status": "stale",
+  "terms": {
+    "licence": "CC0-1.0",
+    "note": "Cash bids and basis are the posting companies' own numbers, free to use, reproduce and redistribute. No exchange-licensed futures prices are included. Bids are indications, not offers, and change without notice. Call the elevator to confirm before hauling.",
+    "contact": "office@badgergrain.com"
+  },
+  "count": 0,
+  "bids": []
+}

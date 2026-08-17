@@ -1,0 +1,10 @@
+{
+  "_comment": "The only file the office edits by hand until the staff screen is built.",
+  "weekday": "8:00a to 5:00p",
+  "saturday": "8:00a to 12:00p",
+  "sunday": null,
+  "harvest": "7:00a to 7:00p",
+  "harvest_mode": false,
+  "closed_today": false,
+  "today_override": null
+}
