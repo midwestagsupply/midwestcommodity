@@ -1,0 +1,69 @@
+# Runs every morning. Two jobs, both small.
+#
+#   1. Update the "Open today" box so it says the right day and the right
+#      hours. Without this the box goes stale and lies. See the note at
+#      the top of tools/update-today.mjs.
+#
+#   2. Check the Wisconsin statutory notices have not drifted from the
+#      other site's copy.
+#
+# Needs no secrets. The built-in GITHUB_TOKEN is enough.
+
+name: Daily
+
+on:
+  schedule:
+    # THREE TIMES, ALL BEFORE 5AM CENTRAL, and that is deliberate.
+    #
+    # Growers check their phones before dawn. At 5am on a Monday a box
+    # updated at 6:10 still says "Closed today, Sunday", which is the
+    # worst thing this page can tell somebody with a loaded truck.
+    #
+    # Three runs because GitHub's scheduler is best effort and drops
+    # runs. Two spares cost nothing. Times are UTC, set for Central
+    # Daylight Time; in winter they land an hour earlier locally, which
+    # is the safe direction.
+    - cron: "15 7 * * *"    # 2:15am Central
+    - cron: "15 8 * * *"    # 3:15am Central
+    - cron: "15 9 * * *"    # 4:15am Central
+  workflow_dispatch:      # the Run workflow button
+  push:
+    branches: [main]      # so it fixes the box the moment you push
+
+# Note: the commit this job makes does NOT retrigger it. GitHub
+# deliberately does not fire workflows from commits made with the
+# built-in GITHUB_TOKEN, so there is no loop here.
+
+permissions:
+  contents: write
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Check the statutory notices
+        run: node tools/check-notices.mjs
+
+      - name: Update today's hours
+        run: node tools/update-today.mjs
+
+      # Tells search engines the page moved on, but only when it really
+      # did. Runs after the hours box so it measures the finished page.
+      - name: Update the sitemap date
+        run: node tools/update-sitemap.mjs
+
+      - name: Commit if it changed
+        run: |
+          git config user.name  "daily hours"
+          git config user.email "actions@github.com"
+          git add index.html sitemap.xml
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "hours: $(TZ=America/Chicago date '+%A %-d %B')"
+            git push
+          fi
