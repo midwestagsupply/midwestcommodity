@@ -89,6 +89,19 @@ if ("banner" in h) {
   console.log(h.banner ? `banner: ${h.banner}` : "banner: hidden");
 }
 
+/* ---- the small print under the hours -----------------------------------
+   Saved by the staff screen into hours.json. Without this it was a box that
+   accepted what you typed, committed it, and changed nothing on the site --
+   which is worse than not offering the box at all. Absent means nobody has
+   set it and whatever is on the page stands; a string replaces it. */
+if (typeof h.hoursnote === "string" && h.hoursnote.trim()) {
+  const HNOTE = /(<div class="hnote">)[\s\S]*?(<\/div>)/;
+  if (!HNOTE.test(html))
+    throw new Error("could not find the note under the hours in index.html");
+  html = html.replace(HNOTE, (_m, a, b) => a + esc(h.hoursnote) + b);
+  console.log("hours note updated");
+}
+
 writeFileSync("index.html", html);
 if (expired) {
   writeFileSync("hours.json", JSON.stringify(h, null, 2) + "\n");

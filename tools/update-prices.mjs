@@ -45,7 +45,11 @@ const FEED_MAX_AGE_H = 14;
    forecast. */
 const FLOOR = 2.0, CEILING = 12.0;
 
-export const CONFIG = { FEED_URL, FEED_MAX_AGE_H, FLOOR, CEILING };
+/* The harvest window. Declared up here because both the spread lookup and
+   the page renderer need it, and a second copy is a second thing to forget. */
+export const HARVEST_MONTHS = ["October", "November"];
+
+export const CONFIG = { FEED_URL, FEED_MAX_AGE_H, FLOOR, CEILING, HARVEST_MONTHS };
 
 /* ---- money ------------------------------------------------------------ */
 
@@ -79,6 +83,21 @@ export function payFrom(cash, spread) {
 export const basisFrom = (basis, spread) =>
   Math.round((basis - spread) * 10000) / 10000;
 
+/* ONE SPREAD PER BUCKET, NOT ONE FOR THE WHOLE BOARD.
+ *
+ * Old crop and new crop are different decisions. Ten cents under for corn off
+ * the truck today and fourteen under for harvest delivery is an ordinary
+ * thing to want, and there is no reason the two should be chained together.
+ *
+ * `spreadHarvest` absent means "the same as cash", so a pricing.json written
+ * before this existed keeps behaving exactly as it did. Absent and equal are
+ * the same outcome here, deliberately: there is nothing a reader could do
+ * differently if it could tell them apart. */
+export function spreadFor(delivery, spreads) {
+  const harvest = spreads.harvest;
+  return HARVEST_MONTHS.includes(delivery) && harvest != null ? harvest : spreads.cash;
+}
+
 export const money = (n) => "$" + n.toFixed(2);
 
 /* Basis the way it is said out loud: -0.52, not -$0.52 and not "52 under".
@@ -94,7 +113,7 @@ export class Withdraw extends Error {}
 /* Everything that decides whether a price may be published. Pure, so the
    tests can put it in every state a real calendar produces without a
    network or a clock. */
-export function board(feed, { now, spread, maxAgeH = FEED_MAX_AGE_H } = {}) {
+export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
   if (!feed || typeof feed !== "object")
     throw new Withdraw("the feed file did not parse as an object");
 
@@ -149,6 +168,7 @@ export function board(feed, { now, spread, maxAgeH = FEED_MAX_AGE_H } = {}) {
         `${b.cash} - (${b.basisDollars}) = ${derived} but their page quotes ` +
         `${b.futuresPriceCents / 100}. One of the columns has moved.`);
 
+    const spread = spreadFor(b.delivery, spreads);
     out.push({
       seq: typeof b.seq === "number" ? b.seq : out.length,
       commodity: b.commodity ?? "Corn",
@@ -157,7 +177,9 @@ export function board(feed, { now, spread, maxAgeH = FEED_MAX_AGE_H } = {}) {
       cash: b.cash,
       theirBasis: b.basisDollars,                // kept for the log, never shown
       basisDollars: basisFrom(b.basisDollars, spread),   // ours
+      futures: b.futuresPriceCents / 100,        // dollars, for the page
       pay: payFrom(b.cash, spread),
+      spread,                                    // which one was applied
     });
   }
 
@@ -203,8 +225,6 @@ export const asOf = (iso) =>
  * months differently we show the LOWER of them, because the figure is
  * offered across the whole window and the higher one would be a promise we
  * had not made. The months are named on the page either way. */
-export const HARVEST_MONTHS = ["October", "November"];
-
 export function headline(bids) {
   const spot = bids[0] ?? null;          // page order is delivery order
   const inHarvest = bids.filter((b) => HARVEST_MONTHS.includes(b.delivery));
@@ -217,9 +237,36 @@ export function headline(bids) {
   return { spot, harvest, window: inHarvest.map((r) => r.delivery) };
 }
 
+/* THE FUTURES COLUMN, AND WHY IT SITS WHERE IT DOES.
+ *
+ * Futures, then basis, then what we pay -- left to right, in the order the
+ * arithmetic runs. A grower reading across gets 4.635 less 62 under makes
+ * 4.02, and the row checks itself. That is the same reason the staff screen
+ * shows Big River's board beside the field: a number you can verify beats a
+ * number you have to trust.
+ *
+ * It is shown on the PAGE only. bids.json and bids.csv still carry no futures
+ * quote, because their own terms text says they do not, and a published
+ * licence that has stopped being true is worse than a missing column. If that
+ * ever changes, change the terms note in the same commit.
+ *
+ * Hidden on a phone with the basis, so a narrow screen shows the delivery and
+ * the price and nothing to scroll sideways for. */
+/* Their board carries quarter cents. Show the figure they printed: 4.88 as
+   $4.88 and 4.635 as $4.635, never $4.6350, which claims a precision they did
+   not publish. */
+export function cashText(n) {
+  const t = n.toFixed(4).replace(/0+$/, "");
+  return t.endsWith(".") ? t + "00" : /\.\d$/.test(t) ? t + "0" : t;
+}
+
+const futText = (r) => (r.futures == null ? "&mdash;" : "$" + cashText(r.futures));
+
 const line = (label, sub, r) =>
   `          <tr><td class="mo">${esc(label)}` +
   (sub ? `<span class="con">${esc(sub)}</span>` : "") + `</td>` +
+  `<td class="fut r m-hide">${futText(r)}` +
+  (r.futuresMonth ? `<span class="con">${esc(r.futuresMonth)}</span>` : "") + `</td>` +
   `<td class="bas r m-hide">${basisText(r.basisDollars)}</td>` +
   `<td class="pay r">${money(r.pay)}</td></tr>`;
 
@@ -234,7 +281,8 @@ export function renderPriced(b) {
   return `      <div class="hd">Prices paid today<span class="as">as of ${esc(asOf(b.pricedAt))}</span></div>
       <table class="bids">
         <thead>
-          <tr><th>Delivery</th><th class="r m-hide">Basis</th><th class="r">We pay</th></tr>
+          <tr><th>Delivery</th><th class="r m-hide">Futures</th>` +
+          `<th class="r m-hide">Basis</th><th class="r">We pay</th></tr>
         </thead>
         <tbody>
 ${rows.join("\n")}
@@ -264,6 +312,62 @@ export function writeRegion(html, inner) {
   return html.replace(REGION, (_m, open, _old, tail) => open + inner + tail);
 }
 
+/* ---- the break-glass ---------------------------------------------------
+ *
+ * When the automatic reading is down, the office types a price on the staff
+ * screen. It is written into pricing.json as `manual`, and it OVERRIDES the
+ * feed until it is cleared -- which is exactly what the screen tells them it
+ * does, so it had better be what happens.
+ *
+ * A hand-posted price is not a reading and is never dressed up as one. It is
+ * labelled on the page, the published record says `status: "manual"`, and no
+ * spread is subtracted from it: the number typed is the number we pay, which
+ * is what "Cash price to post" means on the screen.
+ *
+ * The sanity band is enforced here as well as on the screen. Not because the
+ * screen is untrusted, but because this file is the last thing between a
+ * typed number and a customer, and it is the only one of the two that a test
+ * can hold to it. */
+export function manualBoard(m, { now }) {
+  if (!m || typeof m !== "object") return null;
+  const rows = [];
+  const add = (delivery, cash, basis, label) => {
+    if (typeof cash !== "number" || !Number.isFinite(cash))
+      throw new Withdraw(`the hand-posted ${label} is not a number`);
+    if (cash < FLOOR || cash > CEILING)
+      throw new Withdraw(
+        `the hand-posted ${label} is ${cash}, outside ${FLOOR}-${CEILING}. ` +
+        `Clear it on the staff screen; nothing is being published from it.`);
+    if (basis != null && (typeof basis !== "number" || Math.abs(basis) > 1.5))
+      throw new Withdraw(`the hand-posted ${label} basis is ${basis}, further than 1.50 from zero`);
+    rows.push({ seq: rows.length, commodity: "Corn", delivery, futuresMonth: null,
+                cash, basisDollars: basis ?? null, pay: cash });
+  };
+  if (m.cash != null) add("Cash, corn", m.cash, m.basis ?? null, "cash price");
+  if (m.harvest != null) add("Harvest", m.harvest, m.harvestBasis ?? null, "harvest price");
+  if (!rows.length) return null;
+  return { bids: rows, pricedAt: m.setAt ?? now.toISOString(), checkedAt: now.toISOString(),
+           manual: true, sourceStale: false, ageH: 0 };
+}
+
+export function renderManual(b) {
+  const rows = b.bids.map((r) =>
+    `          <tr><td class="mo">${esc(r.delivery)}</td>` +
+    `<td class="fut r m-hide">&mdash;</td>` +
+    `<td class="bas r m-hide">${r.basisDollars == null ? "&mdash;" : basisText(r.basisDollars)}</td>` +
+    `<td class="pay r">${money(r.pay)}</td></tr>`).join("\n");
+  return `      <div class="hd">Prices paid today<span class="as">posted by the office</span></div>
+      <table class="bids">
+        <thead>
+          <tr><th>Delivery</th><th class="r m-hide">Futures</th>` +
+          `<th class="r m-hide">Basis</th><th class="r">We pay</th></tr>
+        </thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>`;
+}
+
 /* ---- the published record --------------------------------------------- */
 
 /* SCHEMA NOTE. The sites published `emmert-cash-bids/1`, whose only clock was
@@ -280,7 +384,10 @@ export function bidsJson(b, { contact, generated }) {
     generated,
     observed: b ? b.checkedAt : null,
     pricedAt: b ? b.pricedAt : null,
-    status: b ? "ok" : "stale",
+    /* Three states, not two. A hand-posted price is a real price and is
+       published, but a consumer must be able to tell it from a reading, and
+       an unrecognised status is the safe direction for anything that cannot. */
+    status: !b ? "stale" : b.manual ? "manual" : "ok",
     terms: {
       licence: "CC0-1.0",
       note:
@@ -316,7 +423,11 @@ export function bidsCsv(b, site) {
     site.location, site.company, site.city, site.state,
     r.commodity, "cash", r.delivery, r.delivery,
     "",                       // futures symbol deliberately blank; see terms
-    r.basisDollars.toFixed(2), r.pay.toFixed(2),
+    /* Blank, not 0.00. A hand-posted price may carry no basis, and blank means
+       "we are not saying" while zero means "even with the board" -- two
+       different claims, and a consumer can tell them apart. */
+    r.basisDollars == null ? "" : r.basisDollars.toFixed(2),
+    r.pay.toFixed(2),
   ].map(csvCell).join(","));
   return [CSV_HEADER, ...rows].join("\n") + "\n";
 }
@@ -350,32 +461,73 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
   if (typeof spread !== "number" || !Number.isFinite(spread) || spread < 0)
     throw new Error(`pricing.json spread must be a number at or above zero, got ${JSON.stringify(spread)}`);
 
+  const harvest = site.spreadHarvest;
+  if (harvest != null && (typeof harvest !== "number" || !Number.isFinite(harvest) || harvest < 0))
+    throw new Error(
+      `pricing.json spreadHarvest must be a number at or above zero, or absent to ` +
+      `mean the same as the cash spread. Got ${JSON.stringify(harvest)}.`);
+  const spreads = { cash: spread, harvest: harvest ?? null };
+
   let b = null, why = null;
+  /* The override is checked FIRST, because that is what the screen promises:
+     "Anything typed here overrides the feed until you clear it." A break-glass
+     that only works when the glass is already broken is not one. */
   try {
-    const res = await fetchImpl(FEED_URL, { cache: "no-store" });
-    if (!res.ok) throw new Withdraw(`the feed returned HTTP ${res.status}`);
-    b = board(JSON.parse(await res.text()), { now, spread });
+    b = manualBoard(site.manual, { now });
   } catch (e) {
-    if (!(e instanceof Withdraw) && !(e instanceof SyntaxError) && !(e instanceof TypeError)) throw e;
+    if (!(e instanceof Withdraw)) throw e;
     why = e.message;
+  }
+
+  if (!b && !why) {
+    try {
+      const res = await fetchImpl(FEED_URL, { cache: "no-store" });
+      if (!res.ok) throw new Withdraw(`the feed returned HTTP ${res.status}`);
+      b = board(JSON.parse(await res.text()), { now, spreads });
+    } catch (e) {
+      if (!(e instanceof Withdraw) && !(e instanceof SyntaxError) && !(e instanceof TypeError)) throw e;
+      why = e.message;
+    }
   }
 
   if (why) {
     console.error("WITHDRAWING the price from the page.");
     console.error("  reason: " + why);
     console.error("  The page will say 'Call for today's price', which is true.");
+  } else if (b.manual) {
+    console.log(`POSTED BY HAND: ${b.bids.length} row(s) from pricing.json, set ${b.pricedAt}.`);
+    console.log("  The automatic reading is being overridden and will stay overridden");
+    console.log("  until the by-hand boxes are cleared on the staff screen.");
   } else {
-    console.log(`${b.bids.length} rows, priced ${b.pricedAt}, read ${b.ageH.toFixed(1)}h ago`);
+    const used = [...new Set(b.bids.map((r) => r.spread))];
+    console.log(`${b.bids.length} rows, priced ${b.pricedAt}, read ${b.ageH.toFixed(1)}h ago, ` +
+                `spread ${used.map((v) => v.toFixed(2)).join(" / ")} under`);
     if (b.sourceStale)
       console.warn("  NOTE: the reader reports their board has not moved in a long time. " +
                    "That is not our failure and the price is still theirs, but the " +
                    "'as of' date on the page will show it. Worth a look.");
   }
 
-  const html = readFileSync("index.html", "utf8");
+  let html = readFileSync("index.html", "utf8");
+  html = writeRegion(html,
+    !b ? renderWithdrawn() : b.manual ? renderManual(b) : renderPriced(b));
+
+  /* The small print under the price table, saved by the staff screen. Same
+     reasoning as the note under the hours: a box that takes what you type and
+     changes nothing is a worse box than none. Absent leaves the page alone.
+
+     Kept out of writeRegion deliberately -- the terms line sits below the
+     panel and outside it, and the price render must not be able to touch it
+     by accident. */
+  if (typeof site.price_note === "string" && site.price_note.trim()) {
+    const TNOTE = /(<div class="tnote">)[\s\S]*?(<\/div>)/;
+    if (!TNOTE.test(html))
+      throw new Error("could not find the small print under the price table in index.html");
+    html = html.replace(TNOTE, (_m, a, t) => a + esc(site.price_note) + t);
+  }
+
   const changed = [];
-  if (writeIfChanged("index.html", writeRegion(html, b ? renderPriced(b) : renderWithdrawn())))
-    changed.push("index.html");
+  if (writeIfChanged("index.html", html)) changed.push("index.html");
 
   /* `generated` would otherwise churn on every run, so it is carried over
      from the existing file whenever nothing else moved. */
