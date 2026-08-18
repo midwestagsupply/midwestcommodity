@@ -144,6 +144,7 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
       `the file is not internally consistent`);
 
   const out = [];
+  let checkable = 0;
   for (const b of rows) {
     if (typeof b.cash !== "number" || !Number.isFinite(b.cash))
       throw new Withdraw(`${b.delivery ?? "a row"} has no usable cash price`);
@@ -154,19 +155,33 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
 
     /* THE IDENTITY CHECK. The only guard that proves a number came from the
        right COLUMN rather than merely looking plausible: their own three
-       figures have to agree with each other. A row we cannot test is a row
-       we do not publish. */
-    if (typeof b.basisDollars !== "number" || typeof b.futuresPriceCents !== "number")
-      throw new Withdraw(
-        `${b.delivery} cannot be checked: cash - basis = futures needs all three ` +
-        `and this row does not carry them`);
+       figures have to agree with each other.
 
-    const derived = Math.round((b.cash - b.basisDollars) * 10000) / 10000;
-    if (Math.abs(derived * 100 - b.futuresPriceCents) > 1e-6)
-      throw new Withdraw(
-        `${b.delivery} fails cash - basis = futures: ` +
-        `${b.cash} - (${b.basisDollars}) = ${derived} but their page quotes ` +
-        `${b.futuresPriceCents / 100}. One of the columns has moved.`);
+       A NULL QUOTE IS NOT A BROKEN FEED. The reader publishes
+       futuresPriceCents: null on a row whose quote it could not verify --
+       Big River's front-month cell lags its own cash by a tick for minutes at
+       a time. Treating that as "this row cannot be checked, refuse
+       everything" took both sites dark at 21:47 on 2026-08-18 over two rows
+       out of seven, while five balanced perfectly and the cash and basis on
+       all seven were sound.
+
+       So: a row without a quote is carried, with no quote, and the page shows
+       a dash. A row WITH a quote still has to balance exactly. And a majority
+       of rows must carry a quote and balance, or nothing has been proved
+       about the columns and the whole board is refused -- the same rule the
+       reader applies upstream, for the same reason. */
+    if (typeof b.basisDollars !== "number")
+      throw new Withdraw(`${b.delivery} carries no basis, so nothing about it can be checked`);
+
+    if (typeof b.futuresPriceCents === "number") {
+      const derived = Math.round((b.cash - b.basisDollars) * 10000) / 10000;
+      if (Math.abs(derived * 100 - b.futuresPriceCents) > 1e-6)
+        throw new Withdraw(
+          `${b.delivery} fails cash - basis = futures: ` +
+          `${b.cash} - (${b.basisDollars}) = ${derived} but their page quotes ` +
+          `${b.futuresPriceCents / 100}. One of the columns has moved.`);
+      checkable++;
+    }
 
     const spread = spreadFor(b.delivery, spreads);
     out.push({
@@ -177,11 +192,22 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
       cash: b.cash,
       theirBasis: b.basisDollars,                // kept for the log, never shown
       basisDollars: basisFrom(b.basisDollars, spread),   // ours
-      futures: b.futuresPriceCents / 100,        // dollars, for the page
+      /* null travels through as null: the page prints a dash for it, and a
+         figure nobody could verify never reaches a customer. */
+      futures: typeof b.futuresPriceCents === "number" ? b.futuresPriceCents / 100 : null,
       pay: payFrom(b.cash, spread),
       spread,                                    // which one was applied
     });
   }
+
+  /* The rows that could be checked are what proves the columns. Without a
+     majority of them nothing has been proved, and a tolerant reading becomes
+     no reading at all. */
+  if (checkable * 2 <= rows.length)
+    throw new Withdraw(
+      `only ${checkable} of ${rows.length} row(s) carry a futures quote to check ` +
+      `cash - basis against. That is not a majority, so nothing proves the columns ` +
+      `are right, and no price is being published.`);
 
   /* Their page order is the delivery order. It is NOT derivable from the
      month names -- sorting those alphabetically puts April first. */

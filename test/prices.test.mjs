@@ -91,11 +91,17 @@ test("A ROW THAT FAILS cash - basis = futures TAKES THE WHOLE PAGE DOWN", () => 
     (e) => e instanceof Withdraw && /fails cash - basis = futures/.test(e.message));
 });
 
-test("a row that cannot be checked is not published on trust", () => {
+test("a row that cannot be checked is published WITHOUT its quote, not on trust", () => {
+  /* This used to refuse the whole board. It took both sites dark on
+     2026-08-18 when the reader began publishing null for a quote it could not
+     verify. The row is now carried with no quote and the page prints a dash;
+     what is never carried is a number nobody checked. */
   const partial = clone(LIVE);
   delete partial.bids[2].futuresPriceCents;
-  assert.throws(() => board(partial, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
-    (e) => e instanceof Withdraw && /cannot be checked/.test(e.message));
+  const b = board(partial, { now: NOW, spreads: { cash: 0.10, harvest: null } });
+  assert.equal(b.bids.length, 7);
+  assert.equal(b.bids[2].futures, null);
+  assert.equal(b.bids[2].pay, 4.23, "the price is unaffected");
 });
 
 test("a decimal point in the wrong place is refused", () => {
@@ -812,4 +818,77 @@ test("if their board ever splits October and November, the label follows the row
   assert.equal(harvest.delivery, "November");
   assert.match(rowFor(renderPriced(b), "Harvest"), /<span class="con">Jan 27<\/span>/,
     "the contract shown must be the one belonging to the row we picked");
+});
+
+/* ---- a null quote is not a broken feed --------------------------------- */
+
+test("BOTH SITES WENT DARK OVER TWO NULL QUOTES. THAT MUST NOT HAPPEN AGAIN.", () => {
+  /* 2026-08-18, 21:47. The reader had started publishing
+     futuresPriceCents: null on rows whose quote it could not verify -- Big
+     River's front-month cell lags its own cash by a tick. This publisher
+     read null as "this row cannot be checked" and withdrew the whole board.
+     Five of seven rows balanced perfectly and the cash and basis on all seven
+     were sound; both elevators showed "Call for today's price" anyway. */
+  const lagging = clone(LIVE);
+  lagging.bids[0].futuresPriceCents = null;    // August, Sep 26
+  lagging.bids[1].futuresPriceCents = null;    // September, Sep 26
+
+  const b = board(lagging, { now: NOW, spreads: { cash: 0.10, harvest: null } });
+  assert.equal(b.bids.length, 7, "the board publishes");
+  assert.equal(b.bids[0].cash, 4.115, "their cash is untouched");
+  assert.equal(b.bids[0].basisDollars, -0.62, "and our basis is still worked out");
+  assert.equal(b.bids[0].pay, 4.02);
+  assert.equal(b.bids[0].futures, null, "only the quote is missing");
+  assert.equal(b.bids[2].futures, 4.88, "and the rows that had one keep it");
+});
+
+test("...and the page prints a dash for it, never a number", () => {
+  const lagging = clone(LIVE);
+  lagging.bids[0].futuresPriceCents = null;
+  const html = renderPriced(board(lagging, { now: NOW, spreads: { cash: 0.10, harvest: null } }));
+  const cash = html.match(/<tr><td class="mo">Cash, corn[\s\S]*?<\/tr>/)[0];
+  assert.match(cash, /class="fut r m-hide">&mdash;/);
+  assert.match(cash, /\$4\.02/, "the price itself is unaffected");
+  assert.match(html, /class="fut r m-hide">\$4\.88/, "harvest still shows its verified quote");
+});
+
+test("A ROW WITH A QUOTE STILL HAS TO BALANCE EXACTLY", () => {
+  /* Tolerating a missing quote must not tolerate a wrong one. */
+  const wrong = clone(LIVE);
+  wrong.bids[0].futuresPriceCents = null;
+  wrong.bids[3].cash = 4.53;
+  assert.throws(() => board(wrong, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    (e) => e instanceof Withdraw && /fails cash - basis = futures/.test(e.message));
+});
+
+test("AND A MAJORITY MUST CARRY A QUOTE, OR NOTHING IS PROVED", () => {
+  /* Without rows that can be checked, a tolerant reading becomes no reading
+     at all -- exactly the hole the identity check exists to close. */
+  const mostly = clone(LIVE);
+  for (const i of [0, 1, 2, 3]) mostly.bids[i].futuresPriceCents = null;
+  assert.throws(() => board(mostly, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    (e) => e instanceof Withdraw && /not a majority/.test(e.message));
+
+  const three = clone(LIVE);
+  for (const i of [0, 1, 2]) three.bids[i].futuresPriceCents = null;
+  assert.doesNotThrow(() => board(three, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    "4 of 7 checkable is a majority and publishes");
+});
+
+test("a row with no basis at all is still refused outright", () => {
+  const noBasis = clone(LIVE);
+  delete noBasis.bids[0].basisDollars;
+  assert.throws(() => board(noBasis, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    (e) => e instanceof Withdraw && /carries no basis/.test(e.message));
+});
+
+test("the published record carries the null through rather than inventing one", () => {
+  const lagging = clone(LIVE);
+  lagging.bids[0].futuresPriceCents = null;
+  const b = board(lagging, { now: NOW, spreads: { cash: 0.10, harvest: null } });
+  const j = bidsJson(b, { contact: SITE.contact, generated: NOW.toISOString() });
+  assert.equal(j.status, "ok");
+  assert.equal(j.count, 7);
+  assert.equal(j.bids[0].cashPrice, 4.02);
+  assert.equal(j.bids[0].basis, -0.62);
 });
