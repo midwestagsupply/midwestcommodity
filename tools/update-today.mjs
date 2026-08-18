@@ -93,6 +93,9 @@ export function spanMinutes(text) {
 export const opensAt = (text) =>
   spanMinutes(text) ? String(text).split(/\s+to\s+/i)[0] : null;
 
+/* Is the yard open right this minute? Returned alongside the words so the
+   page can carry a visual cue as well as a sentence -- see the note on
+   `is-shut` in the renderer below. */
 export function todayBox(h, { dow, dayName, nowMins }) {
   const hoursOn = (d) =>
     h.harvest_mode ? h.harvest : d === 0 ? h.sunday : d === 6 ? h.saturday : h.weekday;
@@ -126,13 +129,27 @@ export function todayBox(h, { dow, dayName, nowMins }) {
         const hrs = hoursOn(d);
         if (hrs) next = { hours: hrs, tomorrow: i === 1, name: DAY_NAMES[d] };
       }
+      /* SHORT ENOUGH FOR THE BOX IT GOES IN.
+         `.today-hrs` is the biggest type on the page and it is sized for
+         "8:00a to 5:00p" -- fourteen characters. "Open tomorrow 8:00a" is
+         nineteen, and it burst the panel and put a scrollbar under it.
+         Dropping the word "Open" costs nothing: the line directly above
+         already says "Closed for the day", so "Tomorrow 8:00a" reads exactly
+         as intended and is no longer than the Saturday hours the box has
+         always rendered. There is a test that keeps it that way. */
       label = "Closed for the day";
       hours = next
-        ? `Open ${next.tomorrow ? "tomorrow" : next.name} ${opensAt(next.hours) ?? ""}`.trim()
+        ? `${next.tomorrow ? "Tomorrow" : next.name} ${opensAt(next.hours) ?? ""}`.trim()
         : "Call for hours";
     }
   }
-  return { label, hours };
+  /* Open is the ordinary state and keeps the yellow. Shut is not an alarm --
+     five o'clock on a Tuesday is not an emergency -- so it goes MUTED rather
+     than red. Red is for something being wrong, and spending it on "we are
+     closed, as we are every night" is how a warning colour stops meaning
+     anything. */
+  const open = !/^Closed/.test(label);
+  return { label, hours, open };
 }
 
 /* ---- everything below runs only when this file is the script ------------ */
@@ -150,7 +167,7 @@ if ((h.closed_today || h.today_override) && h.today_date !== todayISO) {
   h.today_date = null;
 }
 
-const { label, hours } = todayBox(h, {
+const { label, hours, open } = todayBox(h, {
   dow, dayName, nowMins: centralNow.getHours() * 60 + centralNow.getMinutes(),
 });
 
@@ -161,8 +178,12 @@ if (!hours) {
   html = html.replace(block, '<div class="hrow">');
   console.log(`no hours for ${dayName}; box removed`);
 } else {
+  /* A cue you can read from across the yard, before you read any words.
+     The label is still there and still says it -- the colour reinforces the
+     sentence, it does not replace it, which is the only way a colour is
+     allowed to carry a state. */
   html = html.replace(block,
-    `<div class="today">\n        <div class="today-lbl">${label}</div>\n` +
+    `<div class="today${open ? "" : " is-shut"}">\n        <div class="today-lbl">${label}</div>\n` +
     `        <div class="today-hrs num">${hours}</div>\n      </div>\n      <div class="hrow">`);
   console.log(`${label}, ${hours}`);
 }

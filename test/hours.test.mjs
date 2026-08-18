@@ -29,7 +29,7 @@ const at = (hhmm, dow = 2, h = H) => {
 test("AT TEN PAST FIVE IT SAYS CLOSED, NOT OPEN", () => {
   const r = at("17:11");
   assert.equal(r.label, "Closed for the day");
-  assert.equal(r.hours, "Open tomorrow 8:00a");
+  assert.equal(r.hours, "Tomorrow 8:00a");
 });
 
 test("the flip is exactly at closing time, not a minute either side", () => {
@@ -58,7 +58,7 @@ test("SATURDAY AFTERNOON POINTS AT MONDAY, NOT AT SUNDAY", () => {
      yard is definitely empty. */
   const r = at("13:00", 6);
   assert.equal(r.label, "Closed for the day");
-  assert.equal(r.hours, "Open Monday 8:00a");
+  assert.equal(r.hours, "Monday 8:00a");
 });
 
 test("Sunday is closed all day and says so without a clock", () => {
@@ -70,7 +70,7 @@ test("Sunday is closed all day and says so without a clock", () => {
 });
 
 test("Friday evening points at Saturday, because they are open Saturday", () => {
-  assert.equal(at("18:00", 5).hours, "Open tomorrow 8:00a");
+  assert.equal(at("18:00", 5).hours, "Tomorrow 8:00a");
 });
 
 /* ---- harvest ------------------------------------------------------------- */
@@ -78,7 +78,7 @@ test("Friday evening points at Saturday, because they are open Saturday", () => 
 test("harvest runs seven days, so Saturday evening points at tomorrow", () => {
   const harvest = { ...H, harvest_mode: true };
   assert.equal(at("11:00", 6, harvest).label, "Harvest hours, Saturday");
-  assert.equal(at("20:00", 6, harvest).hours, "Open tomorrow 8:00a",
+  assert.equal(at("20:00", 6, harvest).hours, "Tomorrow 8:00a",
     "not Monday: during harvest they are open on Sunday");
 });
 
@@ -139,7 +139,64 @@ test("midnight and noon are read the way people say them", () => {
 test("a week with no open day at all says call, and does not loop", () => {
   const never = { ...H, weekday: null, saturday: null, sunday: null };
   const r = at("17:11", 2, { ...never, weekday: "8:00a to 5:00p" });
-  assert.equal(r.hours, "Open tomorrow 8:00a");
+  assert.equal(r.hours, "Tomorrow 8:00a");
   const shutForever = at("17:11", 2, { ...never, today_override: "8:00a to 5:00p" });
   assert.equal(shutForever.hours, "Call for hours");
+});
+
+test("NOTHING IT PRINTS IS LONGER THAN WHAT THE BOX ALREADY RENDERS", () => {
+  /* `.today-hrs` is the biggest type on the page, sized for "8:00a to 5:00p".
+     "Open tomorrow 8:00a" burst the panel and put a scrollbar under it. The
+     ceiling is the Saturday hours, which that box has rendered since the day
+     it was built, so anything at or under that length is safe by
+     construction rather than by looking at it. */
+  const CEILING = "8:00a to 12:00p".length;          // 15
+  const H2 = { ...H, weekday: "8:00a to 5:00p" };
+  const seen = new Set();
+  for (let dow = 0; dow < 7; dow++)
+    for (const harvest of [false, true])
+      for (const t of ["06:00", "09:00", "12:30", "17:30", "19:30", "23:00"])
+        seen.add(at(t, dow, { ...H2, harvest_mode: harvest }).hours);
+
+  for (const v of seen)
+    assert.ok(String(v).length <= CEILING,
+      `"${v}" is ${String(v).length} characters; the box fits ${CEILING}`);
+  assert.ok(seen.has("Tomorrow 8:00a") && seen.has("Monday 8:00a"),
+    "and the cases that matter are actually in the set");
+});
+
+test("the label above it carries the word the hours line dropped", () => {
+  /* "Tomorrow 8:00a" only reads correctly because "Closed for the day" is
+     directly above it. If that ever changes, this fails. */
+  const r = at("17:11");
+  assert.equal(r.label, "Closed for the day");
+  assert.doesNotMatch(r.hours, /Open/);
+});
+
+/* ---- the visual cue ------------------------------------------------------ */
+
+test("OPEN AND SHUT ARE DISTINGUISHABLE BEFORE YOU READ A WORD", () => {
+  /* The hours box is the brightest thing on the page and it stayed bright
+     whether the yard was open or shut. The words changed; the colour did not,
+     and the colour is what a grower takes in first from a phone on a
+     dashboard. */
+  assert.equal(at("11:00", 2).open, true);
+  assert.equal(at("06:30", 2).open, false, "before opening");
+  assert.equal(at("17:11", 2).open, false, "after closing");
+  assert.equal(at("10:00", 0).open, false, "closed all day");
+  assert.equal(at("11:00", 6).open, true, "Saturday morning");
+  assert.equal(at("11:00", 2, { ...H, closed_today: true }).open, false);
+  assert.equal(at("18:00", 2, { ...H, harvest_mode: true }).open, true,
+    "harvest runs to seven");
+});
+
+test("...and the words still say it, so the colour is never carrying it alone", () => {
+  /* A colour that is the only thing telling you the yard is shut fails for
+     anyone who cannot see the difference, on a bright dashboard, or in
+     print. The sentence is the meaning; the colour is the cue. */
+  for (const [t, d] of [["06:30", 2], ["17:11", 2], ["13:00", 6], ["10:00", 0]]) {
+    const r = at(t, d);
+    assert.equal(r.open, false);
+    assert.match(r.label, /^Closed/, `${t} must say so in words as well`);
+  }
 });
