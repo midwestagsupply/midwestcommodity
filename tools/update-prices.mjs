@@ -45,6 +45,18 @@ const FEED_MAX_AGE_H = 14;
    forecast. */
 const FLOOR = 2.0, CEILING = 12.0;
 
+/* THE SAME TOLERANCE AT BOTH ENDS, FOR THE SAME REASON.
+ *
+ * Corn futures move in quarter cents and Big River's front-month cell lags
+ * its own cash by one for minutes at a time. The reader upstream already
+ * refuses anything worse and refuses a board where the failures are not a
+ * minority. This is the independent second check -- defence in depth is worth
+ * having -- and it has to measure by the same ruler, or the two disagree and
+ * the sites go dark on a board the reader was happy with. They did, at 21:47
+ * on 2026-08-18. */
+const TICK = 0.25;
+const IDENTITY_SLACK_CENTS = TICK * 2;
+
 /* The harvest window. Declared up here because both the spread lookup and
    the page renderer need it, and a second copy is a second thing to forget. */
 export const HARVEST_MONTHS = ["October", "November"];
@@ -144,7 +156,7 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
       `the file is not internally consistent`);
 
   const out = [];
-  let checkable = 0;
+  let checkable = 0, lagging = 0;
   for (const b of rows) {
     if (typeof b.cash !== "number" || !Number.isFinite(b.cash))
       throw new Withdraw(`${b.delivery ?? "a row"} has no usable cash price`);
@@ -175,12 +187,15 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
 
     if (typeof b.futuresPriceCents === "number") {
       const derived = Math.round((b.cash - b.basisDollars) * 10000) / 10000;
-      if (Math.abs(derived * 100 - b.futuresPriceCents) > 1e-6)
+      const off = Math.abs(derived * 100 - b.futuresPriceCents);
+      if (off > IDENTITY_SLACK_CENTS)
         throw new Withdraw(
           `${b.delivery} fails cash - basis = futures: ` +
           `${b.cash} - (${b.basisDollars}) = ${derived} but their page quotes ` +
-          `${b.futuresPriceCents / 100}. One of the columns has moved.`);
+          `${b.futuresPriceCents / 100}, off by ${off.toFixed(2)}c. ` +
+          `That is far more than a tick, so one of the columns has moved.`);
       checkable++;
+      if (off > 1e-6) lagging++;
     }
 
     const spread = spreadFor(b.delivery, spreads);
@@ -203,6 +218,14 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
   /* The rows that could be checked are what proves the columns. Without a
      majority of them nothing has been proved, and a tolerant reading becomes
      no reading at all. */
+  /* And the rows that balanced EXACTLY are what does the proving, so a
+     tick-sized disagreement is only forgiven while they are in the majority. */
+  if ((checkable - lagging) * 2 <= rows.length)
+    throw new Withdraw(
+      `only ${checkable - lagging} of ${rows.length} row(s) balance cash - basis = futures ` +
+      `to the cent. That is not a majority, so nothing proves the columns are right, ` +
+      `and no price is being published.`);
+
   if (checkable * 2 <= rows.length)
     throw new Withdraw(
       `only ${checkable} of ${rows.length} row(s) carry a futures quote to check ` +
@@ -231,10 +254,26 @@ const esc = (s) =>
 /* "as of" is built from pricedAt, not from the moment this ran. That is
    what makes the file idempotent: a run that changes nothing writes nothing,
    so the repository does not fill with commits that say the same thing. */
-export const asOf = (iso) =>
-  new Date(iso).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago",
-  });
+/* WITH THE TIME, NOT JUST THE DATE.
+ *
+ * A date alone cannot tell you whether the copy in front of you is today's
+ * build or one your phone kept from this morning -- and a phone returning to
+ * a tab from the app switcher restores it from memory without asking the
+ * server at all. A time makes a stale copy obvious at a glance, which beats
+ * any cache header, and GitHub Pages does not let you set cache headers
+ * anyway.
+ *
+ * It costs nothing in churn: this is built from pricedAt, so it only changes
+ * when their board changes, exactly as before. */
+export const asOf = (iso) => {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", timeZone: "America/Chicago" });
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" })
+    .toLowerCase().replace(" ", "");
+  return `${day}, ${time}`;
+};
 
 /* WHAT THE PUBLIC PAGE SHOWS.
  *

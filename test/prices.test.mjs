@@ -132,7 +132,7 @@ test("A QUIET WEEKEND IS NOT A DEAD READER", () => {
   const b = board(quiet, { now: new Date("2026-08-17T09:20:00.000Z"), spreads: { cash: 0.10, harvest: null } });
   assert.equal(b.bids.length, 7);
   assert.equal(b.pricedAt, quiet.pricedAt, "as-of must be the price's own date");
-  assert.match(renderPriced(b), /as of Friday, August 14/,
+  assert.match(renderPriced(b), /as of Friday, August 14, /,
     "and the page must say so rather than implying it is today's");
 });
 
@@ -358,11 +358,21 @@ test("a company name with a comma in it does not break the CSV", () => {
     "eleven fields, the comma inside the quotes not counted");
 });
 
-test("as-of is Central time, not the runner's UTC", () => {
+test("AS-OF CARRIES THE TIME, SO A STALE COPY IS OBVIOUS", () => {
+  /* A date alone cannot tell you whether the page in front of you is today's
+     build or one your phone kept from this morning -- and a phone returning
+     to a tab from the app switcher restores it without asking the server at
+     all. GitHub Pages gives you no cache headers to set, so making staleness
+     visible beats trying to prevent it. */
+  assert.equal(asOf("2026-08-18T21:36:05.916Z"), "Tuesday, August 18, 4:36pm");
+  assert.equal(asOf("2026-08-18T13:05:00.000Z"), "Tuesday, August 18, 8:05am");
+});
+
+test("...and it is still Central time, not the runner's UTC", () => {
   /* 00:30 UTC on the 19th is still the evening of the 18th in Wheeler. A
      page that rolled the date over at 7pm would be wrong every evening. */
-  assert.equal(asOf("2026-08-19T00:30:00.000Z"), "Tuesday, August 18");
-  assert.equal(asOf("2026-08-19T13:00:00.000Z"), "Wednesday, August 19");
+  assert.match(asOf("2026-08-19T00:30:00.000Z"), /^Tuesday, August 18, 7:30pm$/);
+  assert.match(asOf("2026-08-19T13:00:00.000Z"), /^Wednesday, August 19, 8:00am$/);
 });
 
 /* ---- the spread is not guessable --------------------------------------- */
@@ -891,4 +901,42 @@ test("the published record carries the null through rather than inventing one", 
   assert.equal(j.count, 7);
   assert.equal(j.bids[0].cashPrice, 4.02);
   assert.equal(j.bids[0].basis, -0.62);
+});
+
+test("A LAGGING QUOTE IS SHOWN, NOT LEFT BLANK", () => {
+  /* Their front-month cell sits a quarter of a cent behind their own cash.
+     Blanking it left a hole in the futures column of a live page, and the
+     caution was already spent: nothing gets here unless a majority of rows
+     balanced to the cent, which is what proves the columns are right. */
+  const lag = clone(LIVE);
+  lag.bids[0].futuresPriceCents = 463;          // their cell; cash implies 463.25
+  const b = board(lag, { now: NOW, spreads: { cash: 0.10, harvest: null } });
+  assert.equal(b.bids[0].futures, 4.63);
+  const html = renderPriced(b);
+  assert.match(html, /class="fut r m-hide">\$4\.63</);
+  assert.doesNotMatch(html, /class="fut r m-hide">&mdash;/);
+});
+
+test("...but a quote out by more than a tick still takes the board down", () => {
+  const wrong = clone(LIVE);
+  wrong.bids[0].futuresPriceCents = 455;        // 8 cents out
+  assert.throws(() => board(wrong, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    (e) => e instanceof Withdraw && /far more than a tick/.test(e.message));
+});
+
+test("AND THE ROWS THAT BALANCE EXACTLY MUST STILL BE THE MAJORITY", () => {
+  /* Otherwise the slack becomes the rule and the check proves nothing. */
+  const many = clone(LIVE);
+  for (const i of [0, 1, 2, 3])
+    many.bids[i].futuresPriceCents = many.bids[i].futuresPriceCents - 0.25;
+  assert.throws(() => board(many, { now: NOW, spreads: { cash: 0.10, harvest: null } }),
+    (e) => e instanceof Withdraw && /not a majority/.test(e.message));
+});
+
+test("a row they published no quote for at all is still a dash", () => {
+  const none = clone(LIVE);
+  none.bids[0].futuresPriceCents = null;
+  const b = board(none, { now: NOW, spreads: { cash: 0.10, harvest: null } });
+  assert.equal(b.bids[0].futures, null);
+  assert.match(renderPriced(b), /class="fut r m-hide">&mdash;/);
 });
