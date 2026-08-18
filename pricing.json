@@ -1,16 +1,15 @@
 {
   "_comment": "What we pay under Big River, and who we are. The spread is a business decision, not a reading: change it only when the owners change what we pay under the plant. Everything else on the price panel comes from the feed.",
-
   "_spread": "Ten cents under Big River, confirmed by the owners 2026-08-18, and the same figure at both locations. Because cash = futures + basis, ten cents off their cash is the same arithmetic as ten cents off their basis; the page shows OUR basis, which is theirs less this. Confirmed the same as Badger's on 2026-08-18. If one changes, change one.",
-  "spread": 0.10,
-
+  "spread": 0.1,
   "_spreadHarvest": "October and November delivery. Absent, or null, means the same as the cash spread, which is how it behaved when there was only one figure. Set it to run a different spread on new crop.",
   "spreadHarvest": null,
-
   "_contact": "CHECK THIS. The live bids.json on midwestcommodity.com currently publishes office@badgergrain.com as Midwest Commodity's contact, which is Badger's address. Put Midwest's own here.",
   "company": "Midwest Commodity Service, Inc.",
   "location": "Baldwin",
   "city": "Baldwin",
   "state": "WI",
-  "contact": "office@badgergrain.com"
+  "contact": "office@badgergrain.com",
+  "price_note": null,
+  "manual": null
 }
