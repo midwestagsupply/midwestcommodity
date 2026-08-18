@@ -1,57 +1,14 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-08-18T19:08:15.766Z",
-  "observed": "2026-08-18T17:50:10.006Z",
-  "pricedAt": "2026-08-18T17:50:10.006Z",
-  "status": "ok",
+  "generated": "2026-08-18T21:53:51.298Z",
+  "observed": null,
+  "pricedAt": null,
+  "status": "stale",
   "terms": {
     "licence": "CC0-1.0",
     "note": "Cash bids and basis are the posting companies' own numbers, free to use, reproduce and redistribute. No exchange-licensed futures prices are included. Bids are indications, not offers, and change without notice. Call the elevator to confirm before hauling.",
     "contact": "office@badgergrain.com"
   },
-  "count": 7,
-  "bids": [
-    {
-      "commodity": "Corn",
-      "delivery": "August",
-      "basis": -0.62,
-      "cashPrice": 4.02
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "September",
-      "basis": -0.56,
-      "cashPrice": 4.08
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "October",
-      "basis": -0.65,
-      "cashPrice": 4.23
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "November",
-      "basis": -0.65,
-      "cashPrice": 4.23
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "December",
-      "basis": -0.6,
-      "cashPrice": 4.28
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "January",
-      "basis": -0.7,
-      "cashPrice": 4.34
-    },
-    {
-      "commodity": "Corn",
-      "delivery": "February",
-      "basis": -0.68,
-      "cashPrice": 4.36
-    }
-  ]
+  "count": 0,
+  "bids": []
 }
