@@ -1,412 +1,389 @@
-/* ===================================================================
-     EMMERT GRAIN SITES, shared stylesheet.
-     Used by both badger-grain/ and midwest-commodity/. There is only
-     one of these on purpose: change it once, both sites change.
+@font-face{font-family:"Inter";src:url("fonts/inter-500.woff2") format("woff2"),url("fonts/inter-500.woff") format("woff");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"Inter";src:url("fonts/inter-600.woff2") format("woff2"),url("fonts/inter-600.woff") format("woff");font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:"Inter";src:url("fonts/inter-700.woff2") format("woff2"),url("fonts/inter-700.woff") format("woff");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"Inter";src:url("fonts/inter-800.woff2") format("woff2"),url("fonts/inter-800.woff") format("woff");font-weight:800;font-style:normal;font-display:swap}
+@font-face{font-family:"Wordmark";src:url("fonts/dejavusanscondensed-bold.woff2") format("woff2"),url("fonts/dejavusanscondensed-bold.woff") format("woff");font-weight:700;font-style:normal;font-display:swap}
+:root{
+  --font: "Inter","Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --display:"Wordmark","DejaVu Sans Condensed","Liberation Sans Narrow","Arial Narrow",Arial,sans-serif;
+  --radius:8px;--ink:#111111;--paper:#ffffff;--bg:#f2f2f2;--yellow:#f5cf4e;--yellow-dk:#e2b92e;
+  --line:#c8c8c8;--line-lt:#e4e4e4;--grey:#3a3a3a;--band:#f2f2f2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;font-size:19px}
+body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.45;font-size:1.05rem;font-weight:500}
+a{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+h1,h2,h3{line-height:1.15;font-weight:700}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+.sister{background:var(--paper);border-top:3px solid var(--ink);padding:22px 0}
+.sister-l{font-size:.8rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--grey);margin-bottom:12px}
+.sister-a{display:inline-flex;align-items:center;gap:16px;flex-wrap:wrap;text-decoration:none;color:var(--ink);border:2px solid var(--ink);border-radius:var(--radius);padding:14px 18px;max-width:100%}
+.sister-a:hover{background:var(--yellow);text-decoration:none}
+.sister-t{font-size:1rem;line-height:1.35;min-width:0}
+.sister-t strong{display:block;font-size:1.08rem}
+.logo.sm{display:flex;align-items:center;gap:1px;line-height:1;flex:0 0 auto}
+.logo.sm .ear{height:clamp(52px,12vw,64px)}
+.logo.sm .wm1{font-size:clamp(1.5rem,4.6vw,1.85rem)}
+.logo.sm .wmrule{height:3px;margin:3px 0 2px}
+.logo.sm .wm2{font-size:clamp(.56rem,1.7vw,.68rem);letter-spacing:.075em}
+header{background:var(--paper);border-bottom:3px solid var(--ink);text-align:center}
+header .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:14px;padding-bottom:14px}
+.logo{margin:0;line-height:0}
+.logo>img{display:block;width:auto;height:clamp(74px,17vw,120px);max-width:100%}
+.logo:has(.wm){display:flex;align-items:center;justify-content:center;gap:2px;max-width:100%;line-height:1}
+.logo .ear{display:block;width:auto;height:clamp(58px,13vw,112px);flex:0 0 auto}
+.logo .ear.l{margin-right:-3px} .logo .ear.r{margin-left:-3px}
+.wm{display:flex;flex-direction:column;align-items:center;line-height:1;min-width:0}
+.wm1{font-family:var(--display);font-size:clamp(1.85rem,6.4vw,3.35rem);font-weight:700;text-transform:uppercase;line-height:.92;letter-spacing:.005em}
+.wmrule{display:block;width:100%;height:clamp(3px,.55vw,5px);background:var(--yellow);margin:clamp(3px,.5vw,5px) 0 clamp(2px,.4vw,4px)}
+.wm2{font-family:var(--display);font-size:clamp(.66rem,2.36vw,1.24rem);font-weight:700;letter-spacing:.085em;text-transform:uppercase;white-space:nowrap;line-height:1}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tag{font-size:clamp(.85rem,.82rem + .18vw,.95rem);color:var(--grey);max-width:34em;line-height:1.45}
+.tag .town{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em}
+.pricecol{display:flex;flex-direction:column;gap:14px;min-width:0}
+.call{display:block;width:100%;text-align:center;background:var(--yellow);color:var(--ink);font-weight:800;font-size:clamp(1.1rem,1rem + .5vw,1.38rem);padding:18px 22px;text-decoration:none;border-radius:var(--radius);border:3px solid var(--ink)}
+.call:hover{background:var(--yellow-dk);text-decoration:none}
+.notice{background:var(--yellow);border-bottom:3px solid var(--ink);padding:12px 0}
+.notice .wrap{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.notice-tag{background:var(--ink);color:#fff;font-weight:800;font-size:.82rem;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:4px;flex:0 0 auto}
+.notice-msg{font-weight:700;font-size:clamp(1.02rem,.97rem + .35vw,1.2rem);line-height:1.35}
+.top{background:var(--paper);border-bottom:1px solid var(--line);padding:22px 0 28px}
+.topgrid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+.topgrid > *{min-width:0}
+.panel{border:2px solid var(--ink);border-radius:var(--radius);overflow-x:auto;scrollbar-width:thin;background-color:var(--paper);
+  background-image:linear-gradient(to right,var(--paper),rgba(255,255,255,0)),linear-gradient(to left,var(--paper),rgba(255,255,255,0)),radial-gradient(farthest-side at 0 50%,rgba(17,17,17,.20),rgba(17,17,17,0)),radial-gradient(farthest-side at 100% 50%,rgba(17,17,17,.20),rgba(17,17,17,0));
+  background-position:left center,right center,left center,right center;background-repeat:no-repeat;
+  background-size:34px 100%,34px 100%,13px 100%,13px 100%;background-attachment:local,local,scroll,scroll}
+.panel .hd{background:var(--ink);color:#fff;padding:12px 14px;font-weight:700;font-size:1.05rem;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.panel .hd .as{font-weight:400;color:#cccccc;font-size:.85rem}
+.bids td.mo{font-weight:700;white-space:nowrap}
+.bids .fut{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bids .con{display:block;font-size:.8rem;font-weight:500;color:var(--grey);margin-top:2px;letter-spacing:.01em}
+.bids td.bas{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--grey)}
+.bids td.pay{font-weight:800;font-size:clamp(1.3rem,1.18rem + .5vw,1.58rem);font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:600px){ .bids .m-hide{display:none} }
+.nobid{padding:26px 18px;text-align:center}
+.nobid-h{font-size:clamp(1.3rem,1.1rem + .9vw,1.75rem);font-weight:800;line-height:1.2}
+.nobid-p{margin-top:8px;color:var(--grey);font-size:1.02rem;max-width:44ch;margin-left:auto;margin-right:auto}
+.today{background:var(--yellow);border-bottom:2px solid var(--ink);padding:14px 12px;text-align:center}
+.today-lbl{font-size:clamp(.95rem,.9rem + .3vw,1.1rem);font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.today-hrs{font-size:clamp(1.5rem,1.15rem + 1vw,1.8rem);font-weight:800;line-height:1.1;letter-spacing:-.01em;white-space:nowrap}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line-lt);font-size:clamp(1.02rem,.99rem + .18vw,1.1rem);font-weight:600}
+.hrow span:first-child{min-width:0;white-space:normal;flex:1 1 auto}
+.hrow span:last-child{flex:0 0 auto;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hrow:last-of-type{border-bottom:none}
+.hnote{padding:13px 16px;background:var(--band);font-size:1.02rem;color:var(--grey);border-top:1px solid var(--line-lt)}
+table{width:100%;border-collapse:collapse;table-layout:auto}
+td,th{overflow-wrap:normal}
+th{text-align:left;font-size:.9rem;text-transform:uppercase;letter-spacing:.04em;color:var(--grey);font-weight:700;padding:11px 12px;border-bottom:2px solid var(--ink);white-space:nowrap;background:var(--paper)}
+th.r,td.r{text-align:right}
+td{padding:13px 12px;border-bottom:1px solid var(--line-lt);font-size:clamp(1.05rem,1.01rem + .24vw,1.18rem);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+td .cm{font-weight:700}
+td .sub{display:block;font-size:.85rem;color:var(--grey);margin-top:1px}
+td.cash{font-weight:800;font-size:clamp(1.32rem,1.2rem + .5vw,1.6rem);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.r{font-variant-numeric:tabular-nums}
+.m-hide{display:none}
+.tnote{padding:13px 16px;background:var(--band);font-size:1.02rem;color:var(--grey);border-top:1px solid var(--line-lt)}
+.tnote strong{color:var(--ink)}
+section{padding:34px 0;border-bottom:1px solid var(--line)}
+section h2{font-size:clamp(1.6rem,1.4rem + .95vw,2.05rem);margin-bottom:6px}
+section > .wrap > p.intro{color:var(--grey);margin-bottom:14px;max-width:48em;font-size:clamp(1.1rem,1.04rem + .38vw,1.28rem)}
+.ways{border:2px solid var(--ink);background:var(--paper);border-radius:var(--radius);overflow:hidden}
+.way{padding:17px 18px;border-bottom:1px solid var(--line-lt)}
+.way:last-child{border-bottom:none}
+.way h3{font-size:clamp(1.3rem,1.18rem + .55vw,1.55rem);margin-bottom:6px}
+.way p{font-size:clamp(1.06rem,1rem + .38vw,1.22rem);color:var(--grey);max-width:none}
+.schedgrid{display:grid;grid-template-columns:1fr;gap:20px}
+.schedgrid > *{min-width:0}
+.sched{border:2px solid var(--ink);background:var(--paper);border-radius:var(--radius);overflow-x:auto}
+.sched th{padding:10px 16px}
+.sched td{padding:9px 16px;font-size:clamp(1.06rem,1rem + .38vw,1.22rem);font-variant-numeric:tabular-nums}
+.sched td:last-child{text-align:right;font-weight:600}
+.shrink{border:2px solid var(--ink);background:var(--yellow);padding:15px 18px;margin-bottom:14px;border-radius:var(--radius);font-size:clamp(1.05rem,1rem + .4vw,1.25rem)}
+.shrink strong{font-size:1.05em}
+.range{font-size:clamp(1.08rem,1.02rem + .38vw,1.26rem);color:var(--grey);margin-bottom:18px;max-width:46em}
+.drop{border:2px solid var(--ink);border-radius:var(--radius);background:var(--paper);overflow:hidden}
+.drop summary{list-style:none;cursor:pointer;padding:18px 20px;font-weight:700;font-size:clamp(1.05rem,1rem + .4vw,1.22rem);display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--paper)}
+.drop summary::-webkit-details-marker{display:none}
+.drop summary:hover{background:var(--band)}
+.drop summary:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.drop .when-open{display:none}
+.drop[open] .when-closed{display:none}
+.drop[open] .when-open{display:inline}
+.drop[open] summary{border-bottom:2px solid var(--ink)}
+.chev{width:13px;height:13px;border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);transform:rotate(45deg);margin-bottom:5px;flex:0 0 auto}
+.drop[open] .chev{transform:rotate(225deg);margin-bottom:-5px}
+.schedcol{min-width:0}
+.schedhd{font-size:clamp(1.02rem,.97rem + .35vw,1.15rem);margin-bottom:8px;padding-left:2px}
+.dropbody{padding:20px}
+.dropbody .schedgrid{gap:20px}
+.dropbody .sched{border-width:1px}
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:12px 18px;z-index:99;border-radius:0 0 var(--radius) 0;font-weight:700}
+.skip:focus{left:0}
+.actions{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:18px}
+.act{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto;align-items:center;text-decoration:none;color:var(--ink);background:var(--paper);border:2px solid var(--ink);border-radius:var(--radius);padding:13px 16px;min-height:62px}
+.act:hover{background:var(--band);text-decoration:none}
+.act:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.act-t{font-weight:700;font-size:clamp(1.08rem,1rem + .45vw,1.28rem);line-height:1.2}
+.act-s{font-size:clamp(.98rem,.93rem + .24vw,1.08rem);color:var(--grey);line-height:1.3;overflow-wrap:anywhere}
+.act-primary{background:var(--yellow)}
+.act-primary:hover{background:var(--yellow-dk)}
+.act-primary .act-s{color:#4a3f14}
+.act-wide{margin-top:16px}
+.cbh{font-size:clamp(1.1rem,1.04rem + .38vw,1.28rem);margin-bottom:8px}
+.addr{font-size:clamp(1.05rem,1rem + .4vw,1.22rem);line-height:1.5}
+.cblock p{color:var(--grey);font-size:clamp(1.08rem,1.02rem + .34vw,1.2rem);margin-bottom:9px}
+.wi{background:var(--paper);border-bottom:1px solid var(--line)}
+.wi p{color:var(--grey);max-width:52em;margin-bottom:9px;font-size:clamp(1.08rem,1.02rem + .38vw,1.26rem)}
+.wi strong{color:var(--ink)}
+.wi .statute{border:2px solid var(--ink);background:var(--band);padding:17px 20px;border-radius:var(--radius);margin-top:14px;max-width:none}
+.wi .statute p{color:var(--ink);font-size:clamp(1.06rem,1rem + .38vw,1.22rem);margin-bottom:10px}
+.wi .statute p:last-child{margin-bottom:0}
+.statute-lead{color:var(--grey);margin-bottom:14px}
+.statute{margin-top:16px}
+.statute-which{font-size:.92rem;font-weight:700;color:var(--grey);margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em}
+.statute-box{border:3px solid var(--ink);border-radius:var(--radius);background:var(--paper);padding:18px 20px}
+.statute-hd{font-weight:800;font-size:1.05rem;letter-spacing:.06em;margin-bottom:8px}
+.statute-box p:last-child{margin-bottom:0;color:var(--ink);font-size:clamp(1rem,.96rem + .3vw,1.1rem);line-height:1.5}
+.statute-foot{color:var(--grey);font-size:.98rem;margin-top:14px}
+.lics{border:2px solid var(--ink);margin-top:14px;background:var(--paper);border-radius:var(--radius);overflow:hidden}
+.lic{padding:16px 20px;border-bottom:1px solid var(--line-lt);font-size:clamp(1rem,.95rem + .4vw,1.2rem)}
+.lic:last-child{border-bottom:none}
+.lic .l{font-weight:600;display:block}
+.lic .v{font-weight:700;font-variant-numeric:tabular-nums;display:block;margin-top:2px;font-size:1.1em}
+.cgrid{display:grid;grid-template-columns:1fr;gap:18px}
+.cgrid > *{min-width:0}
+footer{padding:22px 0 30px;font-size:.95rem;color:var(--grey);line-height:1.7}
+@media(max-width:520px){
+  td{font-size:.96rem;padding:10px 9px}
+  th{padding:9px 9px;white-space:normal;font-size:.8rem}
+  td .sub{font-size:.82rem}
+  td.cash{font-size:1.18rem}
+  .sched td{padding:8px 10px;font-size:1rem}
+  .hrow{padding-left:12px;padding-right:12px}
+}
+@media(max-width:360px){
+  td{font-size:.88rem;padding:9px 6px}
+  th{padding:8px 6px;font-size:.72rem}
+  td.cash{font-size:1.05rem}
+  .sched td{padding:7px 8px;font-size:.95rem}
+  .panel td:nth-child(2){white-space:normal;word-break:break-word}
+  .wrap{padding-left:12px;padding-right:12px}
+}
+@media(min-width:681px){
+  .wrap{padding:0 22px}
+  .m-hide{display:table-cell}
+  th,td{padding-left:18px;padding-right:18px}
+  .cgrid{grid-template-columns:1fr 1fr;gap:30px}
+  .actions{grid-template-columns:1fr 1fr}
+}
+@media(min-width:900px){ .schedgrid{grid-template-columns:1fr 1fr} }
+@media(min-width:1024px){
+  .topgrid td:nth-child(2){white-space:nowrap}
+  html{font-size:20px}
+  .top{padding:22px 0 26px}
+  .topgrid{grid-template-columns:minmax(0,1.86fr) minmax(340px,.88fr);gap:22px}
+  section{padding:32px 0}
+}
 
-     Mobile first: base styles are the phone layout. The min-width
-     blocks at the end add columns for bigger screens and never take
-     anything away from the phone.
+/* =====================================================================
+   PHONE PASS -- appended 2026-08-18.
 
-     No JavaScript, no cameras, no feeds, nothing animated. Softened
-     corners. Large type. Black and white with one yellow accent. The
-     only images on the page are the two corn ears in the logo.
+   Everything here was measured, not guessed: both sites rendered in a
+   real browser at 320, 375, 390 and 430 CSS pixels and every element
+   asked for its own box. Each block below names the width it was fixed
+   at, so the next person can reproduce the fault before believing the
+   cure.
+   ===================================================================== */
 
-     Buying options per the owners: cash or spot price, forward
-     contract, storage. Hours and prices paid come before everything.
-     Drying schedule, shrink and storage rate are from the owners'
-     posted schedule. Producer security disclosure follows
-     ATCP 99.26(2)(a).
-     =================================================================== */
-  /* Body text. Self hosted, subset to Latin, four weights.
-     No outside request: these pages call nobody. */
-  @font-face{
-    font-family:"Inter";
-    src:url("fonts/inter-500.woff2") format("woff2"),
-        url("fonts/inter-500.woff") format("woff");
-    font-weight:500;font-style:normal;font-display:swap;
-  }
-  @font-face{
-    font-family:"Inter";
-    src:url("fonts/inter-600.woff2") format("woff2"),
-        url("fonts/inter-600.woff") format("woff");
-    font-weight:600;font-style:normal;font-display:swap;
-  }
-  @font-face{
-    font-family:"Inter";
-    src:url("fonts/inter-700.woff2") format("woff2"),
-        url("fonts/inter-700.woff") format("woff");
-    font-weight:700;font-style:normal;font-display:swap;
-  }
-  @font-face{
-    font-family:"Inter";
-    src:url("fonts/inter-800.woff2") format("woff2"),
-        url("fonts/inter-800.woff") format("woff");
-    font-weight:800;font-style:normal;font-display:swap;
-  }
+/* ---- THE ADDRESS BREAKS IN THE WRONG PLACES -------------------------
+   At 320 the footer read
+       Badger Grain Supply, LLC. E5210
+       1040th Avenue, Wheeler, WI
+       54772. (715) 704-0548.
+   A house number split from its street, and a postcode split from its
+   town. Both are single facts and a reader has to reassemble them.
+   `.nb` marks the parts that must stay whole; the phone number is
+   pinned by its own href so it holds even if nobody remembers the
+   span. These are short strings -- 19 and 17 characters -- and they
+   still fit the 296px line a 320px phone gives, so nothing overflows
+   in exchange. */
+.nb{white-space:nowrap}
+footer a[href^="tel:"]{white-space:nowrap}
 
-  /* The logo face. Condensed sans, all caps, self hosted so it renders
-     identically everywhere and needs no outside request. This is the
-     exact face the approved lockup was drawn in; do not swap it for
-     Oswald or another condensed face without re-approving the mark,
-     because the letterforms are not interchangeable.
-     See shared/fonts/README.md. */
-  @font-face{
-    font-family:"Wordmark";
-    src:url("fonts/dejavusanscondensed-bold.woff2") format("woff2"),
-        url("fonts/dejavusanscondensed-bold.woff") format("woff");
-    font-weight:700;
-    font-style:normal;
-    font-display:swap;
-  }
+/* The phone number in the footer is a thing to press, not a thing to
+   read, and it was 21px tall. This gets it to about 41 without moving
+   the line it sits on. */
+footer a[href^="tel:"]{display:inline-block;padding:10px 3px;margin:-10px 0}
 
-  :root{
-    --font: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto,
-            "Helvetica Neue", Arial, sans-serif;
-    /* Condensed sans. Used only by the logo lockups, never by body text. */
-    --display: "Wordmark", "DejaVu Sans Condensed", "Liberation Sans Narrow",
-               "Arial Narrow", Arial, sans-serif;
-    --radius: 8px;
-    --ink:#111111;
-    --paper:#ffffff;
-    --bg:#f2f2f2;
-    --yellow:#f5cf4e;
-    --yellow-dk:#e2b92e;
-    --line:#c8c8c8;
-    --line-lt:#e4e4e4;
-    --grey:#3a3a3a;
-    --band:#f2f2f2;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{-webkit-text-size-adjust:100%;font-size:19px}
-  body{font-family:var(--font);color:var(--ink);background:var(--bg);
-       line-height:1.45;font-size:1.05rem;font-weight:500}
-  a{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:2px}
-  h1,h2,h3{line-height:1.15;font-weight:700}
-  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+/* ---- CLOSED SHOULD NOT LOOK LIKE A CALL TO ACTION -------------------
+   The hours box is the same yellow as the Notice bar and the Call the
+   office button. Yellow on this page means "look here, act". A box
+   saying CLOSED FOR THE DAY in that yellow is the page shouting an
+   invitation. When the elevator is shut the panel goes quiet: grey
+   ground, black rule, same type, same position. Nothing moves, so the
+   difference reads at arm's length without anybody having to compare.
 
+   Muted, not red. Five o'clock on a Tuesday is not an emergency, and a
+   warning colour spent on "we are closed, as we are every night" has
+   stopped meaning anything by the time something is actually wrong.
 
-  /* Sister location, above the footer. Each site points at the other.
-     The mark is the link, per the owners. */
-  .sister{background:var(--paper);border-top:3px solid var(--ink);padding:22px 0}
-  .sister-l{font-size:.8rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-            color:var(--grey);margin-bottom:12px}
-  .sister-a{display:inline-flex;align-items:center;gap:16px;flex-wrap:wrap;
-            text-decoration:none;color:var(--ink);border:2px solid var(--ink);
-            border-radius:var(--radius);padding:14px 18px;max-width:100%}
-  .sister-a:hover{background:var(--yellow);text-decoration:none}
-  .sister-t{font-size:1rem;line-height:1.35;min-width:0}
-  .sister-t strong{display:block;font-size:1.08rem}
-  /* The sister mark. Sized so the second line stays readable: it was
-     7.6px on a phone, which is artwork rather than words. */
-  .logo.sm{display:flex;align-items:center;gap:1px;line-height:1;flex:0 0 auto}
-  .logo.sm .ear{height:clamp(52px,12vw,64px)}
-  .logo.sm .wm1{font-size:clamp(1.5rem,4.6vw,1.85rem)}
-  .logo.sm .wmrule{height:3px;margin:3px 0 2px}
-  .logo.sm .wm2{font-size:clamp(.56rem,1.7vw,.68rem);letter-spacing:.075em}
+   The black rule under the box does NOT change, so only the fill differs
+   between the two states and nothing shifts. Colour is not carrying it
+   alone either -- the label still says Closed in words, which is what a
+   reader who cannot tell the two greys apart is going on. */
+.today.is-shut{background:#e8e6e0}
+.today.is-shut .today-lbl{color:var(--grey)}
+.today.is-shut .today-hrs{color:var(--ink)}
 
-  /* header */
-  header{background:var(--paper);border-bottom:3px solid var(--ink);text-align:center}
-  header .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;
-               padding-top:14px;padding-bottom:14px}
-  /* The logo lockup. Both sites use the same one: an ear of corn each
-     side, the short name large, a yellow rule, then the long name.
-     Only the words change.
+/* ---- "MONDAY TO FRIDAY" WRAPPED, "SATURDAY" DID NOT -----------------
+   At 320 the first hours row broke over two lines while the two below
+   it stayed on one, so the three rows were different heights and the
+   ragged one looked like a mistake rather than a Monday. The row needs 272px at 320 and had exactly 272 to give,
+   so it lost by a hair. A point off the type and two off the gap
+   settle it; 17.1px is still comfortably above anything small. */
+@media(max-width:360px){
+  .hrow{font-size:.9rem;gap:6px;padding-left:10px;padding-right:10px}
+}
 
-     Sizes are fluid. Do not raise them without re-running the viewport
-     check; the long name on the Baldwin site is what runs out of room
-     first. */
-  .logo{margin:0;line-height:0}
-  .logo>img{display:block;width:auto;height:clamp(74px, 17vw, 120px);max-width:100%}
+/* ---- THE LONG EMAIL ------------------------------------------------
+   `overflow-wrap:anywhere` kept it inside the tile but broke it after
+   a full stop -- "office@badgergrainsupply." / "com" -- which reads as
+   the end of a sentence. Smaller type at 360 lets the whole domain sit
+   on one line. If it still breaks on a narrower phone, put a <wbr>
+   before the @ in index.html and it will break there instead. */
+@media(max-width:360px){ .act-s{font-size:.92rem} }
 
-  .logo:has(.wm){display:flex;align-items:center;justify-content:center;gap:2px;
-                 max-width:100%;line-height:1}
-  .logo .ear{display:block;width:auto;height:clamp(58px, 13vw, 112px);flex:0 0 auto}
-  .logo .ear.l{margin-right:-3px} .logo .ear.r{margin-left:-3px}
-  .wm{display:flex;flex-direction:column;align-items:center;line-height:1;min-width:0}
-  .wm1{font-family:var(--display);font-size:clamp(1.85rem, 6.4vw, 3.35rem);font-weight:700;
-       text-transform:uppercase;line-height:.92;letter-spacing:.005em}
-  .wmrule{display:block;width:100%;height:clamp(3px,.55vw,5px);background:var(--yellow);
-          margin:clamp(3px,.5vw,5px) 0 clamp(2px,.4vw,4px)}
-  .wm2{font-family:var(--display);font-size:clamp(.66rem, 2.36vw, 1.24rem);font-weight:700;
-       letter-spacing:.085em;text-transform:uppercase;white-space:nowrap;line-height:1}
-  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-  .tag{font-size:clamp(.85rem, .82rem + .18vw, .95rem);color:var(--grey);max-width:34em;line-height:1.45}
-  .tag .town{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em}
-  .pricecol{display:flex;flex-direction:column;gap:14px;min-width:0}
-  .call{display:block;width:100%;text-align:center;background:var(--yellow);color:var(--ink);
-        font-weight:800;font-size:clamp(1.1rem, 1rem + .5vw, 1.38rem);padding:18px 22px;
-        text-decoration:none;border-radius:var(--radius);border:3px solid var(--ink)}
-  .call:hover{background:var(--yellow-dk);text-decoration:none}
+/* ---- THE SMALL WORDMARK IN "OUR OTHER LOCATION" ---------------------
+   The second line of the sister mark rendered at 10.6px, uppercase,
+   letter-spaced. That is below what anyone reads and it is the name of
+   the other elevator. Floor it at 12.9px, which is where the header's
+   own second line already sits. */
+.logo.sm .wm2{font-size:clamp(.68rem,1.7vw,.68rem)}
 
-  /* notice banner. Staff turn this on and off and type the message.
-     Deliberately not a scrolling marquee: moving text is hard to read,
-     especially for older eyes, and it cannot be paused. */
-  .notice{background:var(--yellow);border-bottom:3px solid var(--ink);padding:12px 0}
-  .notice .wrap{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-  .notice-tag{background:var(--ink);color:#fff;font-weight:800;font-size:.82rem;
-              letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:4px;
-              flex:0 0 auto}
-  .notice-msg{font-weight:700;font-size:clamp(1.02rem, .97rem + .35vw, 1.2rem);line-height:1.35}
+/* ---- FINE PRINT SHOULD LOOK LIKE FINE PRINT -------------------------
+   The note under the prices and the note under the hours were set at
+   1.02rem, the same size as the body copy, so the disclaimer carried
+   as much weight as the number it disclaims. */
+.tnote,.hnote{font-size:.92rem;line-height:1.5}
 
-  /* hours and prices, first */
-  .top{background:var(--paper);border-bottom:1px solid var(--line);padding:22px 0 28px}
-  .topgrid{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
-  .topgrid > *{min-width:0}
-  /* The price panel scrolls sideways when the table will not fit, which
-     happens for real: at 200% text zoom on a 390px phone the table runs to
-     445px and the "We pay" column, the one number the page exists for, is
-     cut to "$3." with nothing on screen suggesting there is more.
+/* ---- RAGGED LINES --------------------------------------------------
+   The tagline, the notice and the headings are centred or short and
+   were breaking one-word-on-the-last-line. Browsers that do not know
+   these properties ignore them and nothing changes. */
+.tag,.notice-msg,section h2,.nobid-h,.act-t,.sister-t strong{text-wrap:balance}
+.way p,.wi p,.cblock p,.range,footer .wrap{text-wrap:pretty}
 
-     Overlay scrollbars are invisible until you already know to scroll, so
-     the affordance is painted instead. The two linear-gradients are the
-     paper background and travel WITH the content (background-attachment:
-     local); the two radial-gradients are shadows pinned to the panel edges
-     (scroll). Where the content is flush against an edge its paper cover
-     sits over the shadow and hides it, so a shadow appears on exactly the
-     side that has more table off-screen, and neither appears when it all
-     fits. No JavaScript, which this site does not have and will not get.
-     scrollbar-width keeps a real bar on platforms that draw one. */
-  .panel{border:2px solid var(--ink);border-radius:var(--radius);overflow-x:auto;
-    scrollbar-width:thin;
-    background-color:var(--paper);
-    background-image:
-      linear-gradient(to right, var(--paper), rgba(255,255,255,0)),
-      linear-gradient(to left,  var(--paper), rgba(255,255,255,0)),
-      radial-gradient(farthest-side at 0 50%,   rgba(17,17,17,.20), rgba(17,17,17,0)),
-      radial-gradient(farthest-side at 100% 50%,rgba(17,17,17,.20), rgba(17,17,17,0));
-    background-position:left center, right center, left center, right center;
-    background-repeat:no-repeat;
-    background-size:34px 100%, 34px 100%, 13px 100%, 13px 100%;
-    background-attachment:local, local, scroll, scroll}
-  .panel .hd{background:var(--ink);color:#fff;padding:12px 14px;font-weight:700;font-size:1.05rem;
-             display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
-  .panel .hd .as{font-weight:400;color:#cccccc;font-size:.85rem}
+/* ---- THE NOTCH -----------------------------------------------------
+   Nothing here is fixed or sticky, so nothing is hidden by the notch in
+   portrait. Turn the phone sideways and the rounded corner eats the
+   first characters of every line. max() keeps the existing padding on
+   every phone that does not need more. */
+.wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+@media(max-width:360px){
+  .wrap{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+}
+@media(min-width:681px){
+  .wrap{padding-left:max(22px,env(safe-area-inset-left));padding-right:max(22px,env(safe-area-inset-right))}
+}
 
-  /* The bid board. Month, the futures price with its contract month
-     under it, basis, then what we actually pay. Cash last because that
-     is the number people came for and the eye lands on the right edge. */
-  .bids td.mo{font-weight:700;white-space:nowrap}
-  .bids .fut{font-variant-numeric:tabular-nums;white-space:nowrap}
-  .bids .con{display:block;font-size:.8rem;font-weight:500;color:var(--grey);
-             margin-top:2px;letter-spacing:.01em}
-  .bids td.bas{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--grey)}
-  .bids td.pay{font-weight:800;font-size:clamp(1.3rem, 1.18rem + .5vw, 1.58rem);
-               font-variant-numeric:tabular-nums;white-space:nowrap}
-  @media(max-width:600px){ .bids .m-hide{display:none} }
+/* ---- THE FUTURES PRICE AND MONTH, ON PHONES TOO --------------------
+   `.m-hide` hid Futures and Basis below 681px, so a phone showed the
+   delivery and the pay price and nothing else. Sig wants the futures
+   price and its contract month on the phone as well.
 
-  /* No price posted. Deliberately loud, so nobody mistakes an empty
-     panel for a broken page. */
-  .nobid{padding:26px 18px;text-align:center}
-  .nobid-h{font-size:clamp(1.3rem, 1.1rem + .9vw, 1.75rem);font-weight:800;line-height:1.2}
-  .nobid-p{margin-top:8px;color:var(--grey);font-size:1.02rem;max-width:44ch;
-           margin-left:auto;margin-right:auto}
+   The board at full size needed 398px of table in a 292px panel at 320,
+   which is why it was hidden in the first place. It fits now because
+   every part of it gives up a little rather than one part giving up a
+   lot: the type steps down in three stages, the cell padding closes
+   from 12px to 5px, the letter-spacing on the small caps goes to zero,
+   and the delivery name is allowed to wrap where it used to be pinned
+   on one line.
 
-  .today{background:var(--yellow);border-bottom:2px solid var(--ink);padding:14px 12px;text-align:center}
-  .today-lbl{font-size:clamp(.95rem, .9rem + .3vw, 1.1rem);font-weight:800;color:var(--ink);
-             text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-  .today-hrs{font-size:clamp(1.5rem, 1.15rem + 1vw, 1.8rem);font-weight:800;line-height:1.1;
-             letter-spacing:-.01em;white-space:nowrap}
-  .hrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;
-        border-bottom:1px solid var(--line-lt);font-size:clamp(1.02rem, .99rem + .18vw, 1.1rem);font-weight:600}
-  .hrow span:first-child{min-width:0;white-space:normal;flex:1 1 auto}
-  .hrow span:last-child{flex:0 0 auto;white-space:nowrap}
-  .hrow:last-of-type{border-bottom:none}
-  .hrow span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
-  .hnote{padding:13px 16px;background:var(--band);font-size:1.02rem;color:var(--grey);
-         border-top:1px solid var(--line-lt)}
+   MEASURED, at 320, 360, 375, 390 and 430, on both sites, with corn at
+   $4.17 and again at $8.99: all four columns fit at every width with
+   nothing cut. The pay price -- the number a grower is actually here
+   for -- lands at 23.8px on the narrowest phone against 24.7px before,
+   so it gives up under a pixel to make room for the other two.
 
-  table{width:100%;border-collapse:collapse;table-layout:auto}
-  td,th{overflow-wrap:normal}
-  th{text-align:left;font-size:.9rem;text-transform:uppercase;letter-spacing:.04em;
-     color:var(--grey);font-weight:700;padding:11px 12px;border-bottom:2px solid var(--ink);
-     white-space:nowrap;background:var(--paper)}
-  th.r,td.r{text-align:right}
-  td{padding:13px 12px;border-bottom:1px solid var(--line-lt);font-size:clamp(1.05rem, 1.01rem + .24vw, 1.18rem);vertical-align:middle}
-  tr:last-child td{border-bottom:none}
-  td .cm{font-weight:700}
-  td .sub{display:block;font-size:.85rem;color:var(--grey);margin-top:1px}
-  td.cash{font-weight:800;font-size:clamp(1.32rem, 1.2rem + .5vw, 1.6rem);font-variant-numeric:tabular-nums;white-space:nowrap}
-  td.r{font-variant-numeric:tabular-nums}
-  .m-hide{display:none}
-  .tnote{padding:13px 16px;background:var(--band);font-size:1.02rem;color:var(--grey);
-         border-top:1px solid var(--line-lt)}
-  .tnote strong{color:var(--ink)}
+   Past that, it degrades rather than breaks. Corn at ten dollars takes
+   the table to 306px in a 292px panel, and the panel scrolls sideways
+   by fourteen pixels with the shadow hints it already has. Nothing is
+   ever cut off; the worst case is a small swipe on a price this
+   elevator has never paid. */
+@media(max-width:680px){
+  .bids .m-hide{display:table-cell}
+  .bids th,.bids td{padding-left:8px;padding-right:8px}
+  .bids th{font-size:.78rem;letter-spacing:0;white-space:normal}
+  .bids td.mo{font-size:.98rem;white-space:normal}
+  .bids .con{font-size:.76rem;letter-spacing:0}
+  .bids td.fut,.bids td.bas{font-size:.94rem}
+  .bids td.pay{font-size:1.4rem}
+}
+@media(max-width:520px){
+  .bids th,.bids td{padding-left:6px;padding-right:6px}
+  .bids th{font-size:.74rem}
+  .bids td.mo{font-size:.92rem}
+  .bids .con{font-size:.72rem}
+  .bids td.fut,.bids td.bas{font-size:.88rem}
+  .bids td.pay{font-size:1.3rem}
+}
+@media(max-width:360px){
+  .bids th,.bids td{padding-left:5px;padding-right:5px}
+  .bids th{font-size:.72rem}
+  .bids td.mo{font-size:.88rem}
+  .bids .con{font-size:.7rem}
+  .bids td.fut,.bids td.bas{font-size:.84rem}
+  .bids td.pay{font-size:1.25rem}
+}
 
-  /* sections */
-  section{padding:34px 0;border-bottom:1px solid var(--line)}
-  section h2{font-size:clamp(1.6rem, 1.4rem + .95vw, 2.05rem);margin-bottom:6px}
-  section > .wrap > p.intro{color:var(--grey);margin-bottom:14px;max-width:48em;font-size:clamp(1.1rem, 1.04rem + .38vw, 1.28rem)}
-  .ways{border:2px solid var(--ink);background:var(--paper);border-radius:var(--radius);overflow:hidden}
-  .way{padding:17px 18px;border-bottom:1px solid var(--line-lt)}
-  .way:last-child{border-bottom:none}
-  .way h3{font-size:clamp(1.3rem, 1.18rem + .55vw, 1.55rem);margin-bottom:6px}
-  .way p{font-size:clamp(1.06rem, 1rem + .38vw, 1.22rem);color:var(--grey);max-width:none}
+/* ---- AND THE RULE THAT WAS HARMLESS UNTIL A MINUTE AGO --------------
+   Higher up the file:
 
-  /* drying schedule */
-  .schedgrid{display:grid;grid-template-columns:1fr;gap:20px}
-  .schedgrid > *{min-width:0}
-  .sched{border:2px solid var(--ink);background:var(--paper);border-radius:var(--radius);overflow-x:auto}
-  .sched th{padding:10px 16px}
-  .sched td{padding:9px 16px;font-size:clamp(1.06rem, 1rem + .38vw, 1.22rem);font-variant-numeric:tabular-nums}
-  .sched td:last-child{text-align:right;font-weight:600}
-  .shrink{border:2px solid var(--ink);background:var(--yellow);padding:15px 18px;margin-bottom:14px;border-radius:var(--radius);
-          font-size:1.05rem}
-  .shrink{font-size:clamp(1.05rem, 1rem + .4vw, 1.25rem)}
-  .shrink strong{font-size:1.05em}
+     @media(max-width:360px){ .panel td:nth-child(2){word-break:break-word} }
 
+   The second cell in the price table is Futures. It was hidden at 360,
+   so that rule aimed at a cell that was not on the page and had never
+   changed a pixel. Showing the column has just switched it on -- and
+   what it says is that a futures price may be broken across a line
+   wherever it likes. "$4.17" on one line and "25" on the next is not a
+   typographic blemish, it is a different number.
 
-  /* drying schedule sits behind a disclosure, so the page is not a wall of numbers.
-     Native details and summary: no JavaScript, works in every browser. */
-  .range{font-size:clamp(1.08rem, 1.02rem + .38vw, 1.26rem);color:var(--grey);margin-bottom:18px;max-width:46em}
-  .drop{border:2px solid var(--ink);border-radius:var(--radius);background:var(--paper);overflow:hidden}
-  .drop summary{list-style:none;cursor:pointer;padding:18px 20px;font-weight:700;
-                font-size:clamp(1.05rem, 1rem + .4vw, 1.22rem);display:flex;align-items:center;
-                justify-content:space-between;gap:14px;background:var(--paper)}
-  .drop summary::-webkit-details-marker{display:none}
-  .drop summary:hover{background:var(--band)}
-  .drop summary:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
-  .drop .when-open{display:none}
-  .drop[open] .when-closed{display:none}
-  .drop[open] .when-open{display:inline}
-  .drop[open] summary{border-bottom:2px solid var(--ink)}
-  .chev{width:13px;height:13px;border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);
-        transform:rotate(45deg);margin-bottom:5px;flex:0 0 auto}
-  .drop[open] .chev{transform:rotate(225deg);margin-bottom:-5px}
-  .schedcol{min-width:0}
-  .schedhd{font-size:clamp(1.02rem, .97rem + .35vw, 1.15rem);margin-bottom:8px;padding-left:2px}
-  .dropbody{padding:20px}
-  .dropbody .schedgrid{gap:20px}
-  .dropbody .sched{border-width:1px}
+   So this puts it back. Also worth knowing: the same rule now applies
+   to the second cell of the DRYING tables, which are also inside a
+   `.panel`. Those hold moisture bands like "16.1 - 17.0" and breaking
+   one of those in half is the same class of mistake.               */
+@media(max-width:360px){
+  .bids td.fut,.bids td.bas,.bids td.pay,.sched td{white-space:nowrap;word-break:normal}
+}
 
+/* ---- THE PHONE NUMBER BROKE INSIDE THE CALL BUTTON -----------------
+   At 320 the button read "Call the office - (715)" / "704-0548". An
+   area code orphaned from its number, in the largest press-me thing on
+   the page.
 
-  /* skip link: invisible until a keyboard user tabs to it */
-  .skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:12px 18px;
-        z-index:99;border-radius:0 0 var(--radius) 0;font-weight:700}
-  .skip:focus{left:0}
+   This one needs a word of markup, because CSS cannot be told to break
+   between the label and the number but not inside the number -- it can
+   only be told where a run of text may never break. Wrapping the
+   number in the `.nb` span that already exists does exactly that, and
+   the button collapses back to a single line on a phone wide enough to
+   hold it. The em dash goes, because a dash at the end of a line with
+   nothing after it is worse than no dash.
 
-  /* action buttons: call, text, email, directions */
-  .actions{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:18px}
-  /* One column. This was two, with the first holding an outline icon, and
-     the label and the number were placed by hand into the second. The
-     icons are gone (no glyph icons), and an empty first column is not
-     harmless here: auto-placement immediately put the label in column one
-     and the phone number in column two, so "Call us" and the number sat
-     side by side on one line instead of stacked. Removing decoration and
-     leaving the frame it hung on is how that happens. */
-  .act{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto;
-       align-items:center;text-decoration:none;color:var(--ink);
-       background:var(--paper);border:2px solid var(--ink);border-radius:var(--radius);
-       padding:13px 16px;min-height:62px}
-  .act:hover{background:var(--band);text-decoration:none}
-  .act:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-  .act-t{font-weight:700;font-size:clamp(1.08rem, 1rem + .45vw, 1.28rem);line-height:1.2}
-  .act-s{font-size:clamp(.98rem, .93rem + .24vw, 1.08rem);color:var(--grey);line-height:1.3;
-         overflow-wrap:anywhere}
-  .act-primary{background:var(--yellow)}
-  .act-primary:hover{background:var(--yellow-dk)}
-  .act-primary .act-s{color:#4a3f14}
-  .act-wide{margin-top:16px}
-  .cbh{font-size:clamp(1.1rem, 1.04rem + .38vw, 1.28rem);margin-bottom:8px}
-  .addr{font-size:clamp(1.05rem, 1rem + .4vw, 1.22rem);line-height:1.5}
-  .cblock p{color:var(--grey);font-size:clamp(1.08rem, 1.02rem + .34vw, 1.2rem);margin-bottom:9px}
+     <a class="call" href="tel:...">Call the office <span class="nb">(715) 704-0548</span></a>
 
-  /* printing: farmers keep the drying schedule in the truck */
-  @media print{
-    .skip,.actions,.call,.drop summary,.sister{display:none !important}
-    .notice{border-bottom:2pt solid #000;background:#fff !important}
-    body{background:#fff;font-size:11pt}
-    .panel,.ways,.lics,.shrink,.statute-box{border-color:#000 !important;
-      box-shadow:none !important;break-inside:avoid}
-    .sched{border-color:#000 !important;box-shadow:none !important}
-    .drop{border:none}
-    .drop .dropbody{display:block !important;padding:0}
-    details>*:not(summary){display:block !important}
-    details::details-content{content-visibility:visible !important;block-size:auto !important}
-    .schedcol{break-inside:auto}
-    .sched thead{display:table-header-group}
-    .sched tr{break-inside:avoid}
-    .schedgrid{display:block}
-    .schedcol+.schedcol{margin-top:16pt}
-    section{padding:14pt 0;break-inside:auto}
-    .today{background:#fff !important;border-bottom:2pt solid #000}
-    a{text-decoration:none;color:#000}
-    .logo img{height:70px}
-  }
+   Measured: two clean lines at 320 and 375, one line from about 400 up.
+   ------------------------------------------------------------------ */
 
-  /* state of wisconsin */
-  .wi{background:var(--paper);border-bottom:1px solid var(--line)}
-  .wi p{color:var(--grey);max-width:52em;margin-bottom:9px;font-size:clamp(1.08rem, 1.02rem + .38vw, 1.26rem)}
-  .wi strong{color:var(--ink)}
-  .wi .statute{border:2px solid var(--ink);background:var(--band);padding:17px 20px;border-radius:var(--radius);
-               margin-top:14px;max-width:none}
-  .wi .statute p{color:var(--ink);font-size:clamp(1.06rem, 1rem + .38vw, 1.22rem);margin-bottom:10px}
-  .wi .statute p:last-child{margin-bottom:0}
-  .wi .cite{font-size:.85rem;color:var(--grey);margin-top:10px}
-  .statute-lead{color:var(--grey);margin-bottom:14px}
-  .statute{margin-top:16px}
-  .statute-which{font-size:.92rem;font-weight:700;color:var(--grey);margin-bottom:6px;
-                 text-transform:uppercase;letter-spacing:.03em}
-  .statute-box{border:3px solid var(--ink);border-radius:var(--radius);background:var(--paper);
-               padding:18px 20px}
-  .statute-hd{font-weight:800;font-size:1.05rem;letter-spacing:.06em;margin-bottom:8px}
-  .statute-box p:last-child{margin-bottom:0;color:var(--ink);
-                            font-size:clamp(1rem, .96rem + .3vw, 1.1rem);line-height:1.5}
-  .statute-foot{color:var(--grey);font-size:.98rem;margin-top:14px}
-  .lics{border:2px solid var(--ink);margin-top:14px;background:var(--paper);border-radius:var(--radius);overflow:hidden}
-  .lic{padding:16px 20px;border-bottom:1px solid var(--line-lt);
-       font-size:clamp(1rem, .95rem + .4vw, 1.2rem)}
-  .lic:last-child{border-bottom:none}
-  .lic .l{font-weight:600;display:block}
-  .lic .v{font-weight:700;font-variant-numeric:tabular-nums;display:block;margin-top:2px;font-size:1.1em}
+/* ---- ONE RULE THAT STILL DOES NOTHING ------------------------------
+   Higher up the file:
 
-  /* contact */
-  .cgrid{display:grid;grid-template-columns:1fr;gap:18px}
-  .cgrid > *{min-width:0}
-  .cblock dt{font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;
-             color:var(--grey);font-weight:700;margin-bottom:4px}
-  .cblock dd{font-size:clamp(1.1rem, 1.02rem + .45vw, 1.3rem);margin-bottom:12px;line-height:1.5;overflow-wrap:anywhere}
+     @media(max-width:600px){ .bids .m-hide{display:none} }
 
-  footer{padding:22px 0 30px;font-size:.95rem;color:var(--grey);line-height:1.7}
-
-
-  /* small phones: same layout, tighter table so the price
-     column still never leaves the screen */
-  @media(max-width:520px){
-    td{font-size:.96rem;padding:10px 9px}
-    th{padding:9px 9px;white-space:normal;font-size:.8rem}
-    td .sub{font-size:.82rem}
-    td.cash{font-size:1.18rem}
-    .sched td{padding:8px 10px;font-size:1rem}
-    .hrow{padding-left:12px;padding-right:12px}
-  }
-  @media(max-width:360px){
-    td{font-size:.88rem;padding:9px 6px}
-    th{padding:8px 6px;font-size:.72rem}
-    td.cash{font-size:1.05rem}
-    .sched td{padding:7px 8px;font-size:.95rem}
-    .panel td:nth-child(2){white-space:normal;word-break:break-word}
-    .wrap{padding-left:12px;padding-right:12px}
-  }
-
-  /* wider phones and tablets: desk columns join the price table */
-  @media(min-width:681px){
-    .wrap{padding:0 22px}
-    .m-hide{display:table-cell}
-    th,td{padding-left:18px;padding-right:18px}
-    .cgrid{grid-template-columns:1fr 1fr;gap:30px}
-    .actions{grid-template-columns:1fr 1fr}
-  }
-
-  @media(min-width:900px){
-    .schedgrid{grid-template-columns:1fr 1fr}
-  }
-
-  /* desks: hours beside prices */
-  @media(min-width:1024px){
-    .topgrid td:nth-child(2){white-space:nowrap}
-    html{font-size:20px}
-    .top{padding:22px 0 26px}
-    .topgrid{grid-template-columns:minmax(0, 1.86fr) minmax(340px, .88fr);gap:22px}
-    section{padding:32px 0}
-  }
+   `.m-hide{display:none}` already hid them at every width, so this rule
+   never changed anything. It is now also overridden by the block above,
+   which is later in the file and therefore wins. Leave it or delete it;
+   just do not add anything after this file that hides `.m-hide` again.
+   ------------------------------------------------------------------ */
