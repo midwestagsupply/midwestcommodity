@@ -12,17 +12,50 @@ name: Prices
 
 on:
   schedule:
-    # Their board moves during the grain day. Off hours it barely moves and
-    # a commit that says the same thing is noise, so we look less often.
     # Times are UTC. GitHub's scheduler is best effort and runs late under
-    # load; nothing here depends on landing on the minute.
-    - cron: "7,27,47 12-21 * * 1-5"   # ~7am-4pm Central, weekdays
-    # Every half hour outside the trading day, not hourly. The hours box now
-    # flips to "Closed for the day" at closing time, and it can only be as
-    # current as the last build -- so this is what decides how long the page
-    # says "open" after they have shut. Half an hour, not an hour.
-    - cron: "17,47 22,23,0-11 * * 1-5"
-    - cron: "17 */3 * * 6,0"          # every three hours at the weekend
+    # load; nothing here depends on landing on the minute. Every entry dodges
+    # :00, which is when every cron on the platform fires at once and a job
+    # asking for it waits behind all of them.
+    #
+    # THE MINUTES ARE CHOSEN AGAINST THE SCRAPER'S, NOT PICKED.
+    #
+    # This job reads a file the `bids` repository writes on its own schedule.
+    # Reading a few minutes BEFORE that write instead of after it costs a full
+    # cycle of freshness for nothing, and that is what the old minutes did off
+    # hours: they ran at :17 and :47 while bids writes at :25, so the :17 read
+    # landed eight minutes early and every off-hours build served a file the
+    # better part of an hour old. Measured across a full week before changing.
+
+    # Every ten minutes through the grain day. 12:00-21:59 UTC covers 7am-4pm
+    # Central in both CST and CDT, so the clocks changing cannot quietly shift
+    # the window out of market hours. bids polls at :03/:13/... so each of
+    # these lands four minutes after a fresh write, every time.
+    - cron: "7,17,27,37,47,57 12-21 * * 1-5"
+
+    # Every half hour outside the grain day. NOT hourly, and the reason is the
+    # hours box rather than the price: it flips to "Closed for the day" at
+    # closing time and can only be as current as the last build, so this is
+    # what decides how long the page says "open" after they have shut. At :05
+    # that is five minutes past the 5pm Central close. Hourly would make it
+    # thirty-five, and a page saying OPEN with the gate shut is the failure
+    # this box exists to prevent.
+    #
+    # The :35 is the freshness half: bids writes hourly at :25, so :35 reads a
+    # ten-minute-old file. The :05 reads a forty-minute-old one, which is the
+    # price of catching the close promptly and is worth paying.
+    - cron: "5,35 22,23,0-11 * * 1-5"
+
+    # The weekend, on the same half-hour grid rather than the old three hours.
+    # Saturday has a noon close and the box has to flip for it; at three-hourly
+    # the page could say OPEN for seventy-seven minutes after the gate shut.
+    #
+    # Note what this does NOT fix. bids polls only every three hours at the
+    # weekend -- deliberately, for reasons written into its own poll.yml -- so
+    # the FEED can still be up to two and a half hours old here however often
+    # this job runs. The scraper is the binding constraint at the weekend, not
+    # this. What the half hour buys at the weekend is the hours box, and that
+    # is enough on its own.
+    - cron: "5,35 * * * 6,0"
   workflow_dispatch:                  # the Run workflow button
   push:
     branches: [main]                  # so a spread change goes live at once
