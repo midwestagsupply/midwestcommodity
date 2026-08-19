@@ -38,6 +38,26 @@ const IS_SCRIPT = import.meta.url === `file://${process.argv[1]}`;
 
 const h = IS_SCRIPT ? JSON.parse(readFileSync("hours.json", "utf8")) : {};
 
+/* The pattern that finds the "Open today" box in index.html.
+
+   FIXED 2026-08-19. This was `<div class="today">`, matching the tag with no
+   class list after it.
+     The four closed states add `is-shut` to that div. So the first time the
+   box went closed, this tool wrote a div that the pattern could no longer
+   find -- and String.prototype.replace against a pattern that does not match
+   returns the string unchanged and throws nothing.
+     From that moment the job kept running on schedule, kept computing the
+   right answer, kept printing it to the log and kept exiting 0, while
+   changing nothing. Both sites sat on "Closed for the day / Tomorrow 8:00a"
+   from the 6:49pm run on 18 August until 8:34am the next morning -- open,
+   with trucks on the road, and a green tick on every run in between. The box
+   could only ever go closed once.
+     The class list is optional here now, so the pattern still finds the box
+   in whichever state it was last left in. Exported because the failure was
+   in this regex and nothing tested it; test/hours.test.mjs holds it against
+   both renderings. */
+export const BOX_BLOCK = /<div class="today(?:\s[^"]*)?">[\s\S]*?<\/div>\s*<div class="hrow">/;
+
 const centralNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Chicago" }));
 const dayName = new Date().toLocaleDateString("en-US", { weekday: "long", timeZone: "America/Chicago" });
 const dow = centralNow.getDay();
@@ -172,7 +192,17 @@ const { label, hours, open } = todayBox(h, {
 });
 
 let html = readFileSync("index.html", "utf8");
-const block = /<div class="today">[\s\S]*?<\/div>\s*<div class="hrow">/;
+const block = BOX_BLOCK;
+
+/* The box removes itself when the job stops running, which assumes the job is
+   the only thing that can leave it stale. A write that silently does nothing
+   defeats that, so a miss stops the run instead of exiting 0 having changed
+   nothing -- which is exactly how the last one went unnoticed. */
+if (!block.test(html)) {
+  throw new Error(
+    'update-today.mjs: could not find the "Open today" box in index.html. ' +
+    "Refusing to exit 0 having changed nothing.");
+}
 
 if (!hours) {
   html = html.replace(block, '<div class="hrow">');

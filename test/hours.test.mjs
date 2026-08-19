@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayBox, spanMinutes, opensAt } from "../tools/update-today.mjs";
+import { todayBox, spanMinutes, opensAt, BOX_BLOCK } from "../tools/update-today.mjs";
 
 const H = {
   weekday: "8:00a to 5:00p", saturday: "8:00a to 12:00p", sunday: null,
@@ -199,4 +199,33 @@ test("...and the words still say it, so the colour is never carrying it alone", 
     assert.equal(r.open, false);
     assert.match(r.label, /^Closed/, `${t} must say so in words as well`);
   }
+});
+
+/* The box has to be findable in the state it was last left in.
+ *
+ * The pattern that finds it used to be `<div class="today">` exactly. Every
+ * closed state renders `<div class="today is-shut">`, so once the box had
+ * gone closed once, the pattern missed, replace() returned the page
+ * unchanged, and the job went on exiting 0 with the wrong day on the page
+ * for as long as nobody looked. These are the two renderings it must find.
+ */
+test("the box pattern finds the box in both renderings", () => {
+  const page = (cls) =>
+    `<div class="${cls}">\n        <div class="today-lbl">x</div>\n` +
+    `        <div class="today-hrs num">y</div>\n      </div>\n      <div class="hrow">`;
+  assert.ok(BOX_BLOCK.test(page("today")), "open rendering");
+  assert.ok(BOX_BLOCK.test(page("today is-shut")), "closed rendering");
+});
+
+test("a closed box can be rewritten a second time", () => {
+  /* The regression itself: render closed, then find it again. */
+  const closed =
+    '<div class="today is-shut">\n        <div class="today-lbl">Closed for the day</div>\n' +
+    '        <div class="today-hrs num">Tomorrow 8:00a</div>\n      </div>\n      <div class="hrow">';
+  const reopened = closed.replace(BOX_BLOCK,
+    '<div class="today">\n        <div class="today-lbl">Open today, Wednesday</div>\n' +
+    '        <div class="today-hrs num">8:00a to 5:00p</div>\n      </div>\n      <div class="hrow">');
+  assert.notEqual(reopened, closed, "replace must not be a silent no-op");
+  assert.match(reopened, /Open today, Wednesday/);
+  assert.doesNotMatch(reopened, /is-shut/);
 });
