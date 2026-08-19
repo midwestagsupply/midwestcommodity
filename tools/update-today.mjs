@@ -58,6 +58,63 @@ const h = IS_SCRIPT ? JSON.parse(readFileSync("hours.json", "utf8")) : {};
    both renderings. */
 export const BOX_BLOCK = /<div class="today(?:\s[^"]*)?">[\s\S]*?<\/div>\s*<div class="hrow">/;
 
+/* Module level because weeklyRows() below is exported and needs it, and
+   because a second copy of an HTML escaper is a second one to get wrong. */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/* ---- THE WEEK'S HOURS, WHICH NOTHING WAS RENDERING ----------------------
+ *
+ * REPORTED 2026-08-19 by Jesse Cebulla: "When I update the hours (we are not
+ * open Saturdays) it is not reflected in the hours window on the site."
+ *
+ * He was right, and the git history of hours.json shows what it cost him:
+ *
+ *     e0d1f15  site: saturday closed
+ *     d6ff7bc  site: saturday 8:00a to 12:00p     <- put back; nothing had happened
+ *     ea641d5  site: saturday closed              <- tried again
+ *
+ * Somebody setting a switch, watching the page not change, setting it back to
+ * be sure, and setting it again. The staff screen was saving correctly and
+ * committing correctly the entire time.
+ *
+ * `weekday`, `saturday` and `sunday` fed exactly one thing: today's box. The
+ * three rows underneath it were hand-typed HTML that nothing read hours.json
+ * to produce. So closing Saturday changed nothing a customer could see on any
+ * day that was not a Saturday -- and on Saturday itself the box would say
+ * CLOSED TODAY directly above a table still offering 8:00a to 12:00p, which
+ * is worse than either one alone.
+ *
+ * This is the same fault the `hoursnote` block further down already names in
+ * its own comment: "a box that accepted what you typed, committed it, and
+ * changed nothing on the site -- which is worse than not offering the box at
+ * all." It was true of three more fields than anybody had noticed.
+ *
+ * HARVEST MODE DELIBERATELY DOES NOT TOUCH THIS TABLE, and neither do
+ * `today_override` or `closed_today`. The note underneath reads "During
+ * harvest we run X, seven days a week. Outside harvest the hours above hold",
+ * so the table is the standing week and those three are exceptions to it. A
+ * closure today says nothing about next Tuesday, and a table that forgot that
+ * would be a new way to be wrong.
+ */
+export const HROWS = /<div class="hrow">[\s\S]*?<div class="hnote">/;
+
+export function weeklyRows(h) {
+  /* A day with no hours renders the word, not an empty span, and drops the
+     `num` class -- "Closed" is not a figure and must not be set as one. That
+     is how the Sunday row was already hand-written; this keeps it. */
+  const row = (label, value) =>
+    `<div class="hrow"><span>${esc(label)}</span>` +
+    (value ? `<span class="num">${esc(value)}</span>` : "<span>Closed</span>") +
+    "</div>";
+  /* No indent on the first row: HROWS starts AT the opening tag, so the six
+     spaces in front of it are already in the document and are not ours to
+     write again. Getting that wrong indents one row twelve spaces and looks
+     like a rendering bug on a page nobody would otherwise inspect. */
+  return [row("Mon to Fri", h.weekday),
+          row("Saturday", h.saturday),
+          row("Sunday", h.sunday)].join("\n      ");
+}
+
 const centralNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Chicago" }));
 const dayName = new Date().toLocaleDateString("en-US", { weekday: "long", timeZone: "America/Chicago" });
 const dow = centralNow.getDay();
@@ -218,6 +275,39 @@ if (!hours) {
   console.log(`${label}, ${hours}`);
 }
 
+/* ---- the week's hours ---------------------------------------------------
+ *
+ * See the note on HROWS above for why this did not exist.
+ *
+ * THIS ONE WARNS AND CARRIES ON WHERE THE BOX GUARD REFUSES, and the reason
+ * is the shape of this file rather than a softer opinion about the table.
+ * index.html is written ONCE, at the very bottom. A throw here would skip
+ * that write, so a malformed hours.json or a moved <div> would take down the
+ * "Open today" box, the banner and the hours note along with the table -- the
+ * whole page frozen by the least important thing on it. The backstop further
+ * down already settles this trade in the same words: "Trading a wrong
+ * sentence for a wrong day is a bad trade."
+ *
+ * A warning nobody reads is how the last one hid, so these are emitted as
+ * GitHub workflow annotations. They surface on the run in the Actions UI even
+ * though this step carries continue-on-error, rather than sitting in a log
+ * that only gets opened after somebody has already noticed. */
+const missing = ["weekday", "saturday", "sunday"].filter((k) => !(k in h));
+if (missing.length) {
+  console.log(`::warning title=hours.json is incomplete::update-today.mjs did not ` +
+    `touch the week's hours: hours.json has no ${missing.join(", ")}. The rows on ` +
+    `the page are whatever was there before and nothing is maintaining them.`);
+} else if (!HROWS.test(html)) {
+  console.log("::warning title=weekly hour rows not found::update-today.mjs could " +
+    "not find the three hrow divs in index.html, so the week's hours were not " +
+    "updated. The rest of the page was. This is the fault Jesse Cebulla reported " +
+    "on 2026-08-19: the office sets the hours, nothing renders them.");
+} else {
+  html = html.replace(HROWS, weeklyRows(h) + '\n      <div class="hnote">');
+  console.log(`week: Mon-Fri ${h.weekday || "closed"}, ` +
+              `Sat ${h.saturday || "closed"}, Sun ${h.sunday || "closed"}`);
+}
+
 /* ---- the banner and the harvest hours, as a backstop ---------------------
  *
  * Found live on both sites at once, in the same file one line apart:
@@ -253,7 +343,6 @@ if (typeof h.banner === "string" && /harvest/i.test(h.banner) && h.harvest) {
    whatever is on the page alone. `null` means take it down. A string means
    put it up. Absent and null are different answers and are treated as
    different answers. */
-const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const NOTICE = /(<\/header>\n)(\n?<div class="notice">[\s\S]*?\n<\/div>\n)?/;
 
 if ("banner" in h) {

@@ -11,7 +11,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayBox, spanMinutes, opensAt, BOX_BLOCK } from "../tools/update-today.mjs";
+import { todayBox, spanMinutes, opensAt, BOX_BLOCK, HROWS, weeklyRows }
+  from "../tools/update-today.mjs";
 
 const H = {
   weekday: "8:00a to 5:00p", saturday: "8:00a to 12:00p", sunday: null,
@@ -228,4 +229,92 @@ test("a closed box can be rewritten a second time", () => {
   assert.notEqual(reopened, closed, "replace must not be a silent no-op");
   assert.match(reopened, /Open today, Wednesday/);
   assert.doesNotMatch(reopened, /is-shut/);
+});
+
+/* ---- THE WEEK'S HOURS ----------------------------------------------------
+ *
+ * Reported 2026-08-19 by Jesse Cebulla: setting Saturday closed changed
+ * nothing on the page. It changed nothing because nothing rendered these
+ * three rows -- `weekday`, `saturday` and `sunday` fed today's box and
+ * stopped there. These are the tests that would have caught it, which is the
+ * reason to write them now rather than only the fix.
+ */
+const PAGE = (sat = '<span class="num">8:00a to 12:00p</span>') =>
+  '      <div class="today">\n        <div class="today-lbl">Open today, Wednesday</div>\n' +
+  '        <div class="today-hrs num">8:00a to 5:00p</div>\n      </div>\n' +
+  '      <div class="hrow"><span>Mon to Fri</span><span class="num">8:00a to 5:00p</span></div>\n' +
+  `      <div class="hrow"><span>Saturday</span>${sat}</div>\n` +
+  '      <div class="hrow"><span>Sunday</span><span>Closed</span></div>\n' +
+  '      <div class="hnote">During harvest we run 8:00a to 7:00p.</div>\n';
+
+const render = (h, page = PAGE()) =>
+  page.replace(HROWS, weeklyRows(h) + '\n      <div class="hnote">');
+
+test("CLOSING SATURDAY CLOSES SATURDAY ON THE PAGE", () => {
+  /* Jesse's report, end to end: the page offers Saturday morning, the file
+     says there is no Saturday, and the file wins. */
+  const before = PAGE();
+  assert.match(before, /Saturday<\/span><span class="num">8:00a to 12:00p/);
+  const after = render({ ...H, saturday: null });
+  assert.notEqual(after, before, "the replace must not be a silent no-op");
+  assert.match(after, /<span>Saturday<\/span><span>Closed<\/span>/);
+  assert.doesNotMatch(after, /8:00a to 12:00p/, "the old row is gone, not merely hidden");
+});
+
+test("a day that IS open keeps its hours and is set as a figure", () => {
+  const out = render({ ...H, saturday: "8:00a to 12:00p" });
+  assert.match(out, /<span>Saturday<\/span><span class="num">8:00a to 12:00p<\/span>/);
+});
+
+test('"Closed" is not a figure, so it does not carry the num class', () => {
+  /* .num is tabular-lining numerals. Setting a word in them is wrong, and it
+     is how the Sunday row was already hand-written. */
+  const out = weeklyRows({ ...H, sunday: null });
+  assert.match(out, /<span>Sunday<\/span><span>Closed<\/span>/);
+  assert.doesNotMatch(out, /class="num">Closed/);
+});
+
+test("all three rows come from the file, not from the page", () => {
+  const out = weeklyRows({ weekday: "7:00a to 6:00p", saturday: "9:00a to 1:00p", sunday: "1:00p to 4:00p" });
+  assert.match(out, /Mon to Fri<\/span><span class="num">7:00a to 6:00p/);
+  assert.match(out, /Saturday<\/span><span class="num">9:00a to 1:00p/);
+  assert.match(out, /Sunday<\/span><span class="num">1:00p to 4:00p/);
+});
+
+test("rendering twice gives the same page", () => {
+  /* The box regression was a replace that stopped matching what it had just
+     written. Hold this pattern to the same standard. */
+  const once = render({ ...H, saturday: null });
+  const twice = render({ ...H, saturday: null }, once);
+  assert.equal(twice, once);
+  assert.equal((once.match(/class="hrow"/g) || []).length, 3, "still three rows, not six");
+});
+
+test("HARVEST MODE DOES NOT REWRITE THE STANDING WEEK", () => {
+  /* The note underneath says "During harvest we run X, seven days a week.
+     Outside harvest the hours above hold." The table is the standing week
+     and harvest is the exception to it; a table that forgot that would be a
+     new way to be wrong. */
+  const normal = weeklyRows({ ...H, saturday: null });
+  assert.equal(weeklyRows({ ...H, saturday: null, harvest_mode: true, harvest: "7:00a to 7:00p" }), normal);
+});
+
+test("a closure today says nothing about next Tuesday", () => {
+  const normal = weeklyRows(H);
+  assert.equal(weeklyRows({ ...H, closed_today: true }), normal);
+  assert.equal(weeklyRows({ ...H, today_override: "9:00a to 1:00p" }), normal);
+});
+
+test("the row pattern finds the rows whether or not the box is above them", () => {
+  /* When the job cannot compute a day it REMOVES the box, leaving the first
+     hrow's opening tag where the box used to be. The rows still have to be
+     findable in that state. */
+  const boxless = PAGE().replace(/ *<div class="today">[\s\S]*?<\/div>\n(?=      <div class="hrow">)/, "");
+  assert.ok(HROWS.test(boxless), "findable with no box above");
+  assert.match(render({ ...H, saturday: null }, boxless), /<span>Saturday<\/span><span>Closed<\/span>/);
+});
+
+test("a value from the file is escaped, not injected", () => {
+  assert.match(weeklyRows({ ...H, saturday: '8a <script>x</script>' }),
+    /8a &lt;script&gt;x&lt;\/script&gt;/);
 });
