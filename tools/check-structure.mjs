@@ -22,6 +22,7 @@ need("site.css",   "must sit beside index.html, not in a subfolder");
 need("CNAME",      "tells Pages which domain this is");
 need(".nojekyll",  "without it Pages hides anything starting with an underscore");
 need("hours.json", "the hours");
+need("pricing.json","the spread and the by-hand override. update-prices.mjs throws without it");
 need("assets",     "logo artwork");
 need("fonts",      "the bundled typefaces");
 need("robots.txt", "tells crawlers everything here is fair game, and where the sitemap is");
@@ -79,10 +80,57 @@ if (existsSync("index.html")) {
   }
 }
 
-// 5. The daily job.
-if (!existsSync(".github/workflows/daily.yml"))
-  problems.push("MISSING: .github/workflows/daily.yml. Without it the Open Today box goes stale.");
-else notes.push(".github/workflows/daily.yml — updates today's hours, checks the notices");
+// 5. Something must rebuild the "Open today" box, on a clock.
+//
+// THIS USED TO LOOK FOR A FILENAME, AND THE FILENAME WAS WRONG.
+//
+// It required `.github/workflows/daily.yml`. That file has never existed in
+// either site, so this check has been failing on an untouched, correctly
+// working repository for as long as it has been here -- while the job it
+// actually cares about, update-today.mjs, was running every few minutes inside
+// prices.yml the whole time.
+//
+// A checker that cries wolf on a clean repo is worse than no checker. The next
+// person reads "1 problem. Do not push yet." on a repo where nothing is wrong,
+// learns that this script is noise, and is not listening on the day it is
+// right.
+//
+// So it checks the CAPABILITY rather than the filename: is there a workflow
+// that runs update-today.mjs, and does it run on a clock? Which file does it,
+// and whether that file is also doing the prices, is nobody's business here.
+{
+  const dir = ".github/workflows";
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => /\.ya?ml$/i.test(f)) : [];
+  const runners = files
+    .map((f) => ({ f, text: readFileSync(`${dir}/${f}`, "utf8") }))
+    .filter((w) => w.text.includes("update-today.mjs"));
+
+  if (!files.length) {
+    problems.push(
+      "MISSING: there are no workflows at all. Nothing rebuilds the \"Open today\" box, " +
+      "and a box that is never rebuilt cannot know what day it is.");
+  } else if (!runners.length) {
+    problems.push(
+      "MISSING: no workflow runs tools/update-today.mjs. Without it the \"Open today\" box " +
+      `goes stale. Workflows present: ${files.join(", ")}.`);
+  } else {
+    // On a clock, not only on push. A push-only rebuild cannot roll the day
+    // over at midnight, which is the one thing this box has to get right.
+    const timed = runners.filter((w) => /^\s*schedule:/m.test(w.text) && /cron:/.test(w.text));
+    if (!timed.length) {
+      problems.push(
+        `${runners.map((w) => w.f).join(", ")} runs update-today.mjs but has no schedule, ` +
+        "so the box is only rebuilt when somebody pushes. It needs a clock: the day " +
+        "rolls over at midnight whether or not anyone is committing.");
+    } else {
+      for (const w of timed) {
+        const crons = [...w.text.matchAll(/cron:\s*["']([^"']+)["']/g)].map((m) => m[1]);
+        notes.push(`${dir}/${w.f} — rebuilds the "Open today" box on ${crons.length} ` +
+                   `schedule${crons.length === 1 ? "" : "s"}: ${crons.join(" | ")}`);
+      }
+    }
+  }
+}
 
 console.log("\nFound:");
 for (const n of notes) console.log("  " + n);
