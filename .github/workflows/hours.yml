@@ -1,0 +1,83 @@
+# The "Open today" box, on its own schedule.
+#
+# WHY THIS EXISTS, 2026-08-20. The box is a sentence baked into a static file,
+# so it can only change when a job runs, and until today the only job that ran
+# it was prices.yml. GitHub's scheduler is best effort. That morning
+# badgergrain's last build was 12:01 UTC and midwestcommodity's was 14:10 UTC --
+# byte-identical workflow files, byte-identical crons, one landed and one did
+# not. At 9:15 Central, with the yard open, one site said "Closed now,
+# Thursday. Opens 8:00a" and the other said "Open today, Thursday".
+#
+# Nothing was broken: 118 tests passed and update-today.mjs, run by hand
+# against the live page, produced the right answer immediately. The build had
+# simply not happened.
+#
+# TWO THINGS CAME OUT OF THAT, AND THIS IS THE SECOND ONE. The first is that
+# the page now works the box out in the reader's own browser -- see
+# tools/today-core.mjs -- which is what actually makes it right to the minute.
+# This workflow is for the reader with JavaScript off, and for the crawler:
+# it puts a job on the two minutes of the day the sentence changes, instead of
+# hoping one of prices.yml's many runs lands near them.
+#
+# It is deliberately NOT continue-on-error. prices.yml runs the same tool with
+# that flag because there a failure must not take the price down with it. Here
+# the box is the entire job, so a failure has nothing to protect and should be
+# red where somebody can see it.
+
+name: Hours
+
+on:
+  schedule:
+    # Times are UTC and Central is not. 8:00a Central is 13:00 UTC in summer
+    # and 14:00 UTC in winter; 5:00p is 22:00 or 23:00; midnight is 05:00 or
+    # 06:00. Cron has no timezone, so BOTH offsets are covered every day and
+    # the tool sorts it out -- it is idempotent, and the run on the wrong side
+    # of the hour finds nothing to change and commits nothing.
+    #
+    # Four attempts spread over the first twenty minutes, because one cron
+    # landing is exactly the assumption that failed. Minute :00 is avoided: it
+    # is when every cron on the platform fires at once.
+    - cron: "2,8,14,20 5,6,13,14,22,23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # THE SAME GROUP AS prices.yml, AND THAT IS THE POINT. Both workflows write
+  # index.html. Two runs writing one file is how a half-rendered page gets
+  # committed, and a second writer racing the first is how a push is rejected
+  # for being behind. One group means they queue instead of collide.
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  hours:
+    runs-on: ubuntu-latest
+    # A hung run holds the shared concurrency group, so every later run of BOTH
+    # workflows queues behind it. Without this the default is six hours of
+    # silence, which looks from outside exactly like the failure above.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      # A guard that has stopped working must not be able to publish.
+      - name: Test the guards
+        run: node --test test/*.test.mjs
+
+      - name: Update the hours box
+        run: node tools/update-today.mjs
+
+      - name: Commit if it changed
+        run: |
+          git config user.name  "hours"
+          git config user.email "actions@github.com"
+          git add index.html hours.json
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "hours: $(TZ=America/Chicago date '+%-d %B %-I:%M%P')"
+            git push
+          fi

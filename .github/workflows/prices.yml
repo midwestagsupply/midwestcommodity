@@ -75,6 +75,11 @@ concurrency:
 jobs:
   prices:
     runs-on: ubuntu-latest
+    # A hung run holds the `prices` concurrency group, and hours.yml shares it,
+    # so every later run of both workflows queues behind it. The default is six
+    # hours. Six hours of silence looks exactly like the 2026-08-20 failure,
+    # where the box sat closed all morning with a green tick on every run.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
