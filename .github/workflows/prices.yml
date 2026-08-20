@@ -117,7 +117,20 @@ jobs:
           SOURCE: ${{ github.event.client_payload.source }}
           PRICED_AT: ${{ github.event.client_payload.pricedAt }}
           THEIR_RUN: ${{ github.event.client_payload.run }}
-        run: echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
+        # A BLOCK SCALAR, and not because it is prettier.
+        #
+        # This line shipped on 2026-08-20 as `run: echo "... $FROM: $SOURCE ..."`
+        # and broke every run in both repositories for seventeen hours. The
+        # quotes there are the SHELL'S. YAML only treats a quote as a quote when
+        # it is the first character of the scalar, and this scalar starts with
+        # `echo`, so to YAML the quotes are ordinary text and the `: ` inside
+        # `$FROM: $SOURCE` opens a nested mapping. The file stopped parsing, so
+        # the workflow never started -- a red run with no steps in it, on the
+        # schedule, on push, and on the dispatch this step was added to explain.
+        #
+        # `run: |` hands the rest to the shell verbatim and YAML stops reading.
+        run: |
+          echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
 
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
