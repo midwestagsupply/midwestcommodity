@@ -1,13 +1,13 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-08-20T17:05:54.379Z",
-  "observed": "2026-08-20T16:48:25.238Z",
-  "pricedAt": "2026-08-20T16:48:25.238Z",
+  "generated": "2026-08-20T18:42:16.371Z",
+  "observed": "2026-08-20T18:40:48.674Z",
+  "pricedAt": "2026-08-20T18:40:48.674Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
     "note": "Cash bids and basis are the posting companies' own numbers, free to use, reproduce and redistribute. No exchange-licensed futures prices are included. Bids are indications, not offers, and change without notice. Call the elevator to confirm before hauling.",
-    "contact": "office@badgergrain.com"
+    "contact": "accounting@midwestagsupply.com"
   },
   "count": 7,
   "bids": [
@@ -45,13 +45,13 @@
       "commodity": "Corn",
       "delivery": "January",
       "basis": -0.7,
-      "cashPrice": 4.49
+      "cashPrice": 4.48
     },
     {
       "commodity": "Corn",
       "delivery": "February",
       "basis": -0.68,
-      "cashPrice": 4.51
+      "cashPrice": 4.5
     }
   ]
 }
