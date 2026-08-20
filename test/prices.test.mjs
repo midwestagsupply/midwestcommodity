@@ -131,9 +131,22 @@ test("A QUIET WEEKEND IS NOT A DEAD READER", () => {
   quiet.checkedAt = "2026-08-17T09:00:00.000Z";
   const b = board(quiet, { now: new Date("2026-08-17T09:20:00.000Z"), spreads: { cash: 0.10, harvest: null } });
   assert.equal(b.bids.length, 7);
-  assert.equal(b.pricedAt, quiet.pricedAt, "as-of must be the price's own date");
-  assert.match(renderPriced(b), /as of Friday, August 14, /,
-    "and the page must say so rather than implying it is today's");
+
+  /* THE DATA STILL CARRIES THE PRICE'S OWN DATE. bids.json and bids.csv are
+     the record and pricedAt is untouched -- only the header changed. */
+  assert.equal(b.pricedAt, quiet.pricedAt);
+
+  /* THIS ASSERTION WAS REVERSED ON 2026-08-20, BY A DECISION AND NOT BY A
+     WEAKENING. It used to require "as of Friday, August 14" here, reasoning
+     that Monday's date would imply a board that had moved this morning. Sig
+     was shown that exact case -- Friday's close, read Monday at 6am -- and
+     chose the check time regardless: "as of" answers "is this the price right
+     now", and at 6am on Monday it is. The elevator will pay it.
+     If you are about to change this back, that is the conversation to have
+     first; the reasoning behind the old assertion was not wrong, it was
+     outvoted by whose question the header is answering. */
+  assert.match(renderPriced(b), /as of Monday, August 17, /,
+    "the header says when we looked, not when their board last moved");
 });
 
 test("A DEAD READER TAKES THE PRICE OFF, on checkedAt not pricedAt", () => {
@@ -962,4 +975,143 @@ test("the shipped pricing.json publishes the contact the owners chose", () => {
   assert.doesNotMatch(pricing.contact, /badgergrain\.com/,
     "Badger's address must not be published as either site's contact again");
   assert.match(pricing.contact, /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i, "it has to be an address");
+});
+
+/* ---- "AS OF" AND "CHECKED" ARE TWO DIFFERENT FACTS ------------------------
+ *
+ * Sig, 2026-08-20: "why is our price as of 140, why cant we get that to be
+ * fresher". It was not stale. Nineteen of the twenty boards in the feed --
+ * five companies, four platforms -- all stopped at 1:40pm Central, because
+ * futures settle at 1:20pm and cash boards freeze after it. We had checked
+ * fifteen minutes before he asked.
+ *
+ * So the page was telling the truth in a way that read as broken. "as of" is
+ * when THEIR board moved; what a farmer wants at five o'clock is that somebody
+ * is still looking.
+ *
+ * AND THE FEED FILE COULD NOT TELL US. `bids` rewrites a source file when the
+ * price changes or on a six-hour heartbeat, so boyceville.json said checkedAt
+ * 18:40 while the reader had run at 21:49. index.json is rewritten every poll.
+ */
+import { checkedAtFrom, freshest } from "../tools/update-prices.mjs";
+
+const INDEX = { sources: [
+  { id: "boyceville", checkedAt: "2026-08-20T21:49:41.154Z" },
+  { id: "albertlea", checkedAt: "2026-08-20T21:49:41.154Z" },
+] };
+
+test("the real check time comes out of the directory", () => {
+  assert.equal(checkedAtFrom(INDEX, "boyceville"), "2026-08-20T21:49:41.154Z");
+});
+
+test("NOT KNOWING IS NULL, NEVER A GUESS", () => {
+  assert.equal(checkedAtFrom(INDEX, "nobody"), null, "a source not in the directory");
+  assert.equal(checkedAtFrom(null, "boyceville"), null, "no directory at all");
+  assert.equal(checkedAtFrom({ sources: [{ id: "boyceville", checkedAt: "soon" }] }, "boyceville"), null,
+    "a timestamp that will not parse");
+  assert.equal(checkedAtFrom({}, "boyceville"), null);
+});
+
+test("the directory wins when it is newer", () => {
+  assert.equal(freshest("2026-08-20T18:40:48.674Z", "2026-08-20T21:49:41.154Z"),
+    "2026-08-20T21:49:41.154Z");
+});
+
+test("AND NEVER GOES BACKWARDS", () => {
+  // A stale directory must not make the page claim we looked less recently
+  // than the feed file itself proves we did.
+  assert.equal(freshest("2026-08-20T21:49:41.154Z", "2026-08-20T18:40:48.674Z"),
+    "2026-08-20T21:49:41.154Z");
+  assert.equal(freshest("2026-08-20T18:40:48.674Z", null), "2026-08-20T18:40:48.674Z");
+  assert.equal(freshest("2026-08-20T18:40:48.674Z", "rubbish"), "2026-08-20T18:40:48.674Z");
+  assert.equal(freshest(null, "2026-08-20T21:49:41.154Z"), "2026-08-20T21:49:41.154Z");
+});
+
+test("ONE TIMESTAMP, AND IT IS WHEN WE LOOKED", () => {
+  /* Sig, 2026-08-20, on "as of 1:40pm - checked 4:49pm": "why does this seem
+     so awkward to me". Because "as of" does not mean "this changed at", it
+     means "at this moment, this is the state" -- so the label was on the wrong
+     one of the two, and showing both made the reader work out which answered
+     their question. At 4:49 we looked and the price was what it was. */
+  const out = renderPriced(board(
+    { ...LIVE, pricedAt: "2026-08-20T18:40:48.674Z", checkedAt: "2026-08-20T21:49:41.154Z" },
+    { now: new Date("2026-08-20T21:50:00Z"), spreads: { cash: 0.10, harvest: 0.00 } }));
+  assert.match(out, /as of Thursday, August 20, 4:49pm/);
+  assert.doesNotMatch(out, /1:40pm/, "the board's change time is not the header's business");
+  assert.doesNotMatch(out, /checked/, "one timestamp, not two");
+});
+
+test("a board checked the moment it moved reads the same way", () => {
+  const out = renderPriced(board(
+    { ...LIVE, pricedAt: "2026-08-20T18:40:48.674Z", checkedAt: "2026-08-20T18:40:48.674Z" },
+    { now: new Date("2026-08-20T18:41:00Z"), spreads: { cash: 0.10, harvest: 0.00 } }));
+  assert.match(out, /as of Thursday, August 20, 1:40pm/);
+});
+
+test("no checkedAt at all falls back to pricedAt rather than printing nothing", () => {
+  const feed = { ...LIVE, pricedAt: "2026-08-20T18:40:48.674Z" };
+  const b = board({ ...feed, checkedAt: feed.pricedAt },
+    { now: new Date("2026-08-20T18:41:00Z"), spreads: { cash: 0.10, harvest: 0.00 } });
+  assert.match(renderPriced({ ...b, checkedAt: undefined }), /as of Thursday, August 20, 1:40pm/);
+});
+
+test("A DIRECTORY WE CANNOT READ MUST NOT COST US THE PRICE", async () => {
+  /* The better timestamp is a nicety. It must never become a second thing that
+     can take the price off the page — the feed file's own checkedAt stays the
+     fallback and the behaviour is exactly what it was before the directory
+     existed. This covers the fetch path, which the pure tests cannot reach. */
+  const { main } = await import("../tools/update-prices.mjs");
+  const { mkdtempSync, writeFileSync, readFileSync: rf } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const feed = JSON.stringify({ ...LIVE, pricedAt: "2026-08-20T18:40:48.674Z",
+                                checkedAt: "2026-08-20T18:40:48.674Z" });
+  const cwd = process.cwd();
+  for (const [what, indexReply] of [
+    ["a 404 from the directory", { ok: false, status: 404, text: async () => "" }],
+    ["a directory that will not parse", { ok: true, status: 200, text: async () => "not json" }],
+    ["a directory with no such source", { ok: true, status: 200, text: async () => '{"sources":[]}' }],
+    ["a directory that throws", null],
+  ]) {
+    const dir = mkdtempSync(join(tmpdir(), "chk-"));
+    writeFileSync(join(dir, "pricing.json"), JSON.stringify({ spread: 0.10, spread_harvest: 0.00, contact: "x" }));
+    writeFileSync(join(dir, "index.html"), PAGE);
+    const fetchImpl = async (url) => {
+      if (!url.includes("index.json")) return { ok: true, status: 200, text: async () => feed };
+      if (indexReply === null) throw new TypeError("network");
+      return indexReply;
+    };
+    try {
+      process.chdir(dir);
+      await main({ fetchImpl, now: new Date("2026-08-20T19:00:00Z") });
+      const out = rf(join(dir, "index.html"), "utf8");
+      /* With no directory the feed file's own checkedAt is what "as of"
+         shows, which is the behaviour from before the directory existed. */
+      assert.match(out, /as of Thursday, August 20, 1:40pm/, `${what}: the price was withdrawn`);
+    } finally { process.chdir(cwd); }
+  }
+});
+
+test("and when the directory IS readable the page says when we looked", async () => {
+  const { main } = await import("../tools/update-prices.mjs");
+  const { mkdtempSync, writeFileSync, readFileSync: rf } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const feed = JSON.stringify({ ...LIVE, pricedAt: "2026-08-20T18:40:48.674Z",
+                                checkedAt: "2026-08-20T18:40:48.674Z" });
+  const dir = mkdtempSync(join(tmpdir(), "chk-"));
+  writeFileSync(join(dir, "pricing.json"), JSON.stringify({ spread: 0.10, spread_harvest: 0.00, contact: "x" }));
+  writeFileSync(join(dir, "index.html"), PAGE);
+  const fetchImpl = async (url) => url.includes("index.json")
+    ? { ok: true, status: 200,
+        text: async () => JSON.stringify({ sources: [{ id: "boyceville", checkedAt: "2026-08-20T21:49:41.154Z" }] }) }
+    : { ok: true, status: 200, text: async () => feed };
+  const cwd = process.cwd();
+  try {
+    process.chdir(dir);
+    await main({ fetchImpl, now: new Date("2026-08-20T21:50:00Z") });
+    const out = rf(join(dir, "index.html"), "utf8");
+    assert.match(out, /as of Thursday, August 20, 4:49pm/, "the header must show when we looked");
+    assert.doesNotMatch(out, /1:40pm/);
+  } finally { process.chdir(cwd); }
 });

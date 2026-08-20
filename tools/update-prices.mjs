@@ -33,6 +33,23 @@ import { readFileSync, writeFileSync } from "node:fs";
 const FEED_URL =
   "https://raw.githubusercontent.com/dnilgis/bids/main/data/boyceville.json";
 
+/* THE FEED FILE'S OWN checkedAt IS NOT WHEN WE LAST CHECKED.
+ *
+ * `bids` rewrites a source file when the price CHANGES, or on a six-hour
+ * heartbeat. So on a quiet afternoon boyceville.json can say checkedAt 1:40pm
+ * while the reader has in fact looked every ten minutes since. Measured
+ * 2026-08-20 at 22:03Z: the file said 18:40, the reader had run at 21:49.
+ *
+ * That matters twice over. It is what the page prints, and Sig's point stands
+ * -- a farmer at five o'clock wants to know the SITE IS ALIVE, which "as of
+ * 1:40pm" does not tell him. And it is what FEED_MAX_AGE_H is measured
+ * against, so the guard that asks "has the reader stopped?" has really been
+ * asking "has the price moved lately?" all along.
+ *
+ * index.json is rewritten on EVERY poll and carries the true time. */
+const INDEX_URL =
+  "https://raw.githubusercontent.com/dnilgis/bids/main/data/index.json";
+
 /* How cold `checkedAt` may get before we stop publishing. The reader
    heartbeats every 6 hours even when the price has not moved, so anything
    past 14 means it has missed two heartbeats in a row and we are no longer
@@ -263,8 +280,31 @@ const esc = (s) =>
  * any cache header, and GitHub Pages does not let you set cache headers
  * anyway.
  *
- * It costs nothing in churn: this is built from pricedAt, so it only changes
- * when their board changes, exactly as before. */
+ * THIS NOW CHANGES ON EVERY POLL, not only when their board moves, because it
+ * is built from checkedAt. That is the churn Sig chose knowingly on
+ * 2026-08-20 -- "if we are scraping the data i want it timed with the
+ * scraper" -- and it is why poll.yml tells the sites every run rather than
+ * only on a price move. */
+/* The real last-check time for one source, out of the directory.
+ *
+ * Returns null rather than guessing: an index we could not read, a source that
+ * is not in it, or a timestamp that will not parse all mean the same thing --
+ * we do not know, and the feed file's own value is what we fall back to. */
+export function checkedAtFrom(index, id) {
+  const s = (index?.sources ?? []).find((x) => x?.id === id);
+  const t = s?.checkedAt;
+  return typeof t === "string" && Number.isFinite(Date.parse(t)) ? t : null;
+}
+
+/* NEVER GO BACKWARDS. If the directory somehow carries an older time than the
+   feed file, the feed file is the better answer and the directory is stale. */
+export function freshest(feedCheckedAt, indexCheckedAt) {
+  const a = Date.parse(feedCheckedAt ?? ""), b = Date.parse(indexCheckedAt ?? "");
+  if (!Number.isFinite(b)) return feedCheckedAt ?? null;
+  if (!Number.isFinite(a)) return indexCheckedAt;
+  return b > a ? indexCheckedAt : feedCheckedAt;
+}
+
 export const asOf = (iso) => {
   const d = new Date(iso);
   const day = d.toLocaleDateString("en-US", {
@@ -343,7 +383,27 @@ export function renderPriced(b) {
   if (harvest)
     rows.push(line("Harvest", window.join(" and ") + " delivery", harvest));
 
-  return `      <div class="hd">Prices paid today<span class="as">as of ${esc(asOf(b.pricedAt))}</span></div>
+  /* "AS OF" IS WHEN WE LOOKED, NOT WHEN THEIR BOARD MOVED.
+   *
+   * This line went through three versions in one evening and the last one is
+   * the only one that is plain English.
+   *
+   * It began as "as of 1:40pm", built from pricedAt -- when their board last
+   * CHANGED. At five o'clock that is correct and reads as broken: nineteen of
+   * the twenty boards in the feed stopped at 1:40pm on 2026-08-20, because
+   * futures settle at 1:20pm Central and cash boards freeze after it.
+   *
+   * It then briefly showed both, "as of 1:40pm - checked 4:49pm", which Sig
+   * called awkward and was right about. Two timestamps make the reader work
+   * out which one answers their question, and the label was still on the wrong
+   * one. "As of" does not mean "this changed at"; it means "at this moment,
+   * this is the state". At 4:49 we looked and the price was $4.17, so "as of
+   * 4:49pm" is exactly the sentence.
+   *
+   * pricedAt is not lost -- it is in bids.json and bids.csv, which are the
+   * record. The header is not the record; it is the answer to "is this the
+   * price right now". */
+  return `      <div class="hd">Prices paid today<span class="as">as of ${esc(asOf(b.checkedAt ?? b.pricedAt))}</span></div>
       <table class="bids">
         <thead>
           <tr><th>Delivery</th><th class="r m-hide">Futures</th>` +
@@ -548,7 +608,25 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
     try {
       const res = await fetchImpl(FEED_URL, { cache: "no-store" });
       if (!res.ok) throw new Withdraw(`the feed returned HTTP ${res.status}`);
-      b = board(JSON.parse(await res.text()), { now, spreads });
+      const feed = JSON.parse(await res.text());
+
+      /* THE DIRECTORY IS A NICETY, NOT A DEPENDENCY. If it cannot be read the
+         price still publishes on the feed file's own checkedAt, exactly as it
+         did before this existed. A better timestamp is not worth being a
+         second thing that can take the price off the page. */
+      let checkedAt = feed.checkedAt;
+      try {
+        const ir = await fetchImpl(INDEX_URL, { cache: "no-store" });
+        if (ir.ok) {
+          checkedAt = freshest(feed.checkedAt, checkedAtFrom(JSON.parse(await ir.text()), "boyceville"));
+        } else {
+          console.log(`  the directory returned HTTP ${ir.status}; using the feed file's own checkedAt`);
+        }
+      } catch (e) {
+        console.log(`  the directory could not be read (${e.message}); using the feed file's own checkedAt`);
+      }
+
+      b = board({ ...feed, checkedAt }, { now, spreads });
     } catch (e) {
       if (!(e instanceof Withdraw) && !(e instanceof SyntaxError) && !(e instanceof TypeError)) throw e;
       why = e.message;
