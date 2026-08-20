@@ -30,6 +30,7 @@
       half of each, so it moved to the job that already owns index.html.
 */
 import { readFileSync, writeFileSync } from "node:fs";
+import { DAY_NAMES, spanMinutes, opensAt, todayBox, expireToday } from "./today-core.mjs";
 
 /* Imported by the tests for the pure parts, and run as a script by the
    workflow. Nothing below the guard happens on import, so `todayBox` can be
@@ -98,6 +99,146 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  */
 export const HROWS = /<div class="hrow">[\s\S]*?<div class="hnote">/;
 
+/* ---- THE SAME ANSWER, WORKED OUT IN THE READER'S OWN BROWSER -------------
+ *
+ * 2026-08-20. The box is a sentence in a static file, so it can only change
+ * when a job runs, and the job is a GitHub cron. GitHub crons are best effort.
+ * That morning badgergrain's last build was 12:01 UTC and midwestcommodity's
+ * was 14:10 UTC -- the same workflow file, the same crons, one landed and one
+ * did not -- so at 9:15 Central one site said "Closed now, Thursday. Opens
+ * 8:00a" with the yard open and the other said "Open today, Thursday".
+ *
+ * Nothing was broken. The tests passed and this tool, run by hand against the
+ * live page, produced the right answer immediately. NO AMOUNT OF CORRECTNESS
+ * IN A BUILD SURVIVES A BUILD THAT DOES NOT RUN.
+ *
+ * So the page carries the rule with it. These are the FIRST script tags on
+ * either site and that was not a decision taken lightly -- Sig chose it with
+ * the trade in front of him. What keeps it honest:
+ *
+ *   - THE SERVER-RENDERED SENTENCE IS STILL WRITTEN, and is what a reader
+ *     without JavaScript sees. The script only ever overwrites it, and only
+ *     with the answer the same code would have produced.
+ *   - THERE IS ONE COPY OF THE RULE. today-core.mjs is imported by this file
+ *     and its SOURCE TEXT is inlined below. Not a port, not a translation --
+ *     the same characters. The only transformation is deleting the word
+ *     `export `, and a test asserts the inlined text still contains the real
+ *     function bodies.
+ *   - IT FAILS BY DOING NOTHING. Every step is inside a try/catch that leaves
+ *     the built-in answer exactly where it was. A page that says the right
+ *     thing until the second the script errors is not made worse by the error.
+ *
+ * The data comes with the page rather than from a fetch: a fetch would need a
+ * round trip, could fail on its own, and would put a second copy of hours.json
+ * on the wire. Only the eight fields todayBox actually reads are inlined.
+ */
+export const CLIENT_BLOCK = /<!-- TODAY:js -->[\s\S]*?<!-- \/TODAY:js -->/;
+
+/* JSON inside a <script> ends at the first "</script>" the HTML parser sees,
+   wherever it appears -- inside a string is no protection. Escaping the "<"
+   of any closing tag is the whole fix, and it is why this is not JSON.stringify
+   on its own. */
+const jsonForScript = (o) => JSON.stringify(o).replace(/</g, "\\u003c");
+
+/* TWO TRANSFORMATIONS, BOTH NAMED, AND NOTHING ELSE.
+ *
+ * 1. Drop the module keyword, so the text is a plain function declaration.
+ * 2. Drop the comments. today-core.mjs is 7kB of prose around 2kB of code,
+ *    and it was measured before this existed: inlining it whole took the
+ *    page from 4,708 to 8,771 gzipped bytes. Nearly doubling a deliberately
+ *    light page to ship paragraphs to a browser is not a trade worth making,
+ *    and the paragraphs are still in the repository where they are read.
+ *
+ * ONLY LINE-INITIAL COMMENTS ARE TOUCHED, which is what makes this safe to do
+ * with a pattern at all: a `/*` or `//` inside a string or a regex literal is
+ * never at the start of a line in this file, and cannot become so without the
+ * check below failing. today-core.mjs's own header forbids anything cleverer.
+ *
+ * The safety net is not the pattern, it is the test. test/hours.test.mjs runs
+ * the STRIPPED text against the real module across every minute of a week and
+ * asserts the two agree, so a strip that changed behaviour could not ship. */
+export function leanCore(coreSource) {
+  const out = String(coreSource)
+    .replace(/^[ \t]*\/\*[\s\S]*?\*\/[ \t]*\n/gm, "")
+    .replace(/^[ \t]*\/\/.*\n/gm, "")
+    .replace(/^export /gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  /* A strip that produced something unparseable must not reach a page. */
+  new Function(`${out}\nreturn typeof todayBox;`);
+  return out;
+}
+
+export function clientScript(h, coreSource) {
+  /* Exactly the fields todayBox() and expireToday() read, and nothing else.
+     A field the rule does not use is a field on the wire for no reason. */
+  const data = {
+    weekday: h.weekday ?? null, saturday: h.saturday ?? null, sunday: h.sunday ?? null,
+    harvest: h.harvest ?? null, harvest_mode: !!h.harvest_mode,
+    closed_today: !!h.closed_today, today_override: h.today_override ?? null,
+    today_date: h.today_date ?? null,
+  };
+    const core = leanCore(coreSource);
+  return `<!-- TODAY:js -->
+<script type="application/json" id="today-hours">${jsonForScript(data)}</script>
+<script>
+/* The box, worked out from your clock rather than from the last build.
+   Generated by tools/update-today.mjs -- edit tools/today-core.mjs, not this. */
+(function () {
+  "use strict";
+${core.split("\n").map((l) => (l ? "  " + l : l)).join("\n")}
+
+  try {
+    var data = document.getElementById("today-hours");
+    if (!data) return;
+    var h = JSON.parse(data.textContent);
+    var now = new Date();
+    var parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago", weekday: "long",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(now);
+    var g = {};
+    for (var i = 0; i < parts.length; i++) g[parts[i].type] = parts[i].value;
+    var dow = DAY_NAMES.indexOf(g.weekday);
+    if (dow < 0) return;
+    /* en-CA gives YYYY-MM-DD, the same shape the build compares against. */
+    var todayISO = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(now);
+    expireToday(h, todayISO);
+    /* Some ICU builds render midnight as hour 24. */
+    var nowMins = (Number(g.hour) % 24) * 60 + Number(g.minute);
+    var r = todayBox(h, { dow: dow, dayName: g.weekday, nowMins: nowMins });
+
+    var box = document.querySelector(".today");
+    if (!r.hours) { if (box && box.parentNode) box.parentNode.removeChild(box); return; }
+
+    /* The build removes the box on a day with no hours. Without this, a Sunday
+       build followed by no Monday build would leave Monday with no box at all
+       and the script with nothing to correct -- the exact failure it is here
+       to prevent, arriving one day later. */
+    if (!box) {
+      var first = document.querySelector(".hrow");
+      if (!first || !first.parentNode) return;
+      box = document.createElement("div");
+      var l = document.createElement("div"); l.className = "today-lbl";
+      var v = document.createElement("div"); v.className = "today-hrs num";
+      box.appendChild(l); box.appendChild(v);
+      first.parentNode.insertBefore(box, first);
+    }
+    var lbl = box.querySelector(".today-lbl"), hrs = box.querySelector(".today-hrs");
+    if (!lbl || !hrs) return;
+    box.className = "today" + (r.open ? "" : " is-shut");
+    lbl.textContent = r.label;
+    hrs.textContent = r.hours;
+  } catch (e) {
+    /* Leave the sentence the build wrote. It was right when it was written. */
+  }
+})();
+</script>
+<!-- /TODAY:js -->`;
+}
+
 export function weeklyRows(h) {
   /* A day with no hours renders the word, not an empty span, and drops the
      `num` class -- "Closed" is not a figure and must not be set as one. That
@@ -145,89 +286,11 @@ const todayISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/Chi
  * saying "open" just after closing beats the whole evening and all night,
  * which is what it did before.
  */
-export const DAY_NAMES =
-  ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-/* "8:00a to 5:00p" -> [480, 1020], minutes since midnight. null on anything
-   it does not recognise, and the caller then leaves the box as it was rather
-   than guessing: an unparseable span is not a licence to invent an opening
-   time. */
-export function spanMinutes(text) {
-  const m = /^(\d{1,2}):(\d{2})([ap])\s+to\s+(\d{1,2}):(\d{2})([ap])$/i
-    .exec(String(text ?? "").trim());
-  if (!m) return null;
-  const mins = (hh, mm, ap) => {
-    let hr = +hh % 12;
-    if (ap.toLowerCase() === "p") hr += 12;
-    return hr * 60 + +mm;
-  };
-  const open = mins(m[1], m[2], m[3]), close = mins(m[4], m[5], m[6]);
-  /* A span that ends before it starts is not a day, it is a typo. Refuse it
-     rather than declare the elevator shut since breakfast. */
-  return close > open ? [open, close] : null;
-}
-
-export const opensAt = (text) =>
-  spanMinutes(text) ? String(text).split(/\s+to\s+/i)[0] : null;
-
-/* Is the yard open right this minute? Returned alongside the words so the
-   page can carry a visual cue as well as a sentence -- see the note on
-   `is-shut` in the renderer below. */
-export function todayBox(h, { dow, dayName, nowMins }) {
-  const hoursOn = (d) =>
-    h.harvest_mode ? h.harvest : d === 0 ? h.sunday : d === 6 ? h.saturday : h.weekday;
-
-  let label, hours;
-  if (h.closed_today)        { label = `Closed today, ${dayName}`;  hours = "Closed"; }
-  else if (h.today_override) { label = `Open today, ${dayName}`;    hours = h.today_override; }
-  else if (h.harvest_mode)   { label = `Harvest hours, ${dayName}`; hours = h.harvest; }
-  else                       { label = `Open today, ${dayName}`;    hours = hoursOn(dow); }
-  if (!h.closed_today && !h.today_override && !h.harvest_mode && !hoursOn(dow)) {
-    label = `Closed today, ${dayName}`; hours = "Closed";
-  }
-
-  /* Now put the clock to it, INCLUDING a today-override.
-     This first excluded overrides on the reasoning that they are a deliberate
-     statement by the office. That confused two things. The office decides
-     today's SPAN; it does not thereby claim to be open at five past five. An
-     override of "9:00a to 1:00p" read "Open today" all afternoon, which is
-     the very fault this was written to fix, on the one day somebody had gone
-     to the trouble of saying the hours were different. */
-  const span = h.closed_today ? null : spanMinutes(hours);
-  if (span) {
-    const [open, close] = span;
-    if (nowMins < open) {
-      label = `Closed now, ${dayName}`;
-      hours = `Opens ${opensAt(hours)}`;
-    } else if (nowMins >= close) {
-      let next = null;
-      for (let i = 1; i <= 7 && !next; i++) {
-        const d = (dow + i) % 7;
-        const hrs = hoursOn(d);
-        if (hrs) next = { hours: hrs, tomorrow: i === 1, name: DAY_NAMES[d] };
-      }
-      /* SHORT ENOUGH FOR THE BOX IT GOES IN.
-         `.today-hrs` is the biggest type on the page and it is sized for
-         "8:00a to 5:00p" -- fourteen characters. "Open tomorrow 8:00a" is
-         nineteen, and it burst the panel and put a scrollbar under it.
-         Dropping the word "Open" costs nothing: the line directly above
-         already says "Closed for the day", so "Tomorrow 8:00a" reads exactly
-         as intended and is no longer than the Saturday hours the box has
-         always rendered. There is a test that keeps it that way. */
-      label = "Closed for the day";
-      hours = next
-        ? `${next.tomorrow ? "Tomorrow" : next.name} ${opensAt(next.hours) ?? ""}`.trim()
-        : "Call for hours";
-    }
-  }
-  /* Open is the ordinary state and keeps the yellow. Shut is not an alarm --
-     five o'clock on a Tuesday is not an emergency -- so it goes MUTED rather
-     than red. Red is for something being wrong, and spending it on "we are
-     closed, as we are every night" is how a warning colour stops meaning
-     anything. */
-  const open = !/^Closed/.test(label);
-  return { label, hours, open };
-}
+/* The decision lives in tools/today-core.mjs so that the page can run the
+   SAME TEXT in the browser -- see the header of that file. Re-exported here
+   because test/hours.test.mjs and anything else that grew up importing them
+   from this module should not have to care that they moved. */
+export { DAY_NAMES, spanMinutes, opensAt, todayBox, expireToday } from "./today-core.mjs";
 
 /* ---- everything below runs only when this file is the script ------------ */
 
@@ -235,14 +298,10 @@ export function todayBox(h, { dow, dayName, nowMins }) {
    only when this file IS the script. The pure parts above import cleanly. */
 if (IS_SCRIPT) {
 
-/* A today-only answer that was about a different day is not an answer. */
-let expired = false;
-if ((h.closed_today || h.today_override) && h.today_date !== todayISO) {
-  expired = true;
-  h.closed_today = false;
-  h.today_override = null;
-  h.today_date = null;
-}
+/* A today-only answer that was about a different day is not an answer.
+   The rule lives in today-core.mjs so the browser applies the identical one
+   to a page that was cached yesterday. */
+const expired = expireToday(h, todayISO);
 
 const { label, hours, open } = todayBox(h, {
   dow, dayName, nowMins: centralNow.getHours() * 60 + centralNow.getMinutes(),
@@ -306,6 +365,36 @@ if (missing.length) {
   html = html.replace(HROWS, weeklyRows(h) + '\n      <div class="hnote">');
   console.log(`week: Mon-Fri ${h.weekday || "closed"}, ` +
               `Sat ${h.saturday || "closed"}, Sun ${h.sunday || "closed"}`);
+}
+
+/* ---- the same answer, in the reader's browser ---------------------------
+ *
+ * WARNS RATHER THAN REFUSING, for the reason HROWS does: index.html is written
+ * once at the bottom of this file, so a throw here would take the box, the
+ * table and the banner down with it. A missing script block costs a JS reader
+ * the live clock and leaves them exactly where every reader was yesterday --
+ * a degradation, not a regression. */
+/* IT PUTS ITS OWN MARKERS IN, and that is not laziness -- it is what makes
+   this shippable. index.html is rewritten by a job every few minutes, so a
+   hand-uploaded copy of it is stale before it lands and would revert whatever
+   price the last run wrote. Nothing here needs a page upload: the first run
+   after this tool lands inserts the block, every run after rewrites it. */
+if (!CLIENT_BLOCK.test(html)) {
+  const before = /<\/body>/i;
+  if (before.test(html)) {
+    html = html.replace(before, "<!-- TODAY:js -->\n<!-- /TODAY:js -->\n\n</body>");
+    console.log("client clock: marker pair inserted (first run)");
+  } else {
+    console.log("::warning title=client hours block not placed::update-today.mjs " +
+      "found neither the <!-- TODAY:js --> markers nor a </body> in index.html, " +
+      "so the page cannot correct its own box between builds. The server-rendered " +
+      "sentence is still being written and is what every reader sees.");
+  }
+}
+if (CLIENT_BLOCK.test(html)) {
+  html = html.replace(CLIENT_BLOCK,
+    () => clientScript(h, readFileSync(new URL("today-core.mjs", import.meta.url), "utf8")));
+  console.log("client clock: rendered");
 }
 
 /* ---- the banner and the harvest hours, as a backstop ---------------------
