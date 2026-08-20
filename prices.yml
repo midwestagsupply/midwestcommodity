@@ -1,0 +1,161 @@
+# Put today's corn bid on the page, or take it off.
+#
+# Reads the JSON the `bids` repository commits from Big River's board and
+# renders it into index.html. Needs no secrets: `bids` is a public
+# repository, so this is a plain unauthenticated read, and the commit back
+# into this repository uses the built-in GITHUB_TOKEN.
+#
+# Nothing here scrapes anything. If the reader has stopped, this takes the
+# price off the page rather than leaving yesterday's number up.
+
+name: Prices
+
+on:
+  schedule:
+    # Times are UTC. GitHub's scheduler is best effort and runs late under
+    # load; nothing here depends on landing on the minute. Every entry dodges
+    # :00, which is when every cron on the platform fires at once and a job
+    # asking for it waits behind all of them.
+    #
+    # THE MINUTES ARE CHOSEN AGAINST THE SCRAPER'S, NOT PICKED.
+    #
+    # This job reads a file the `bids` repository writes on its own schedule.
+    # Reading a few minutes BEFORE that write instead of after it costs a full
+    # cycle of freshness for nothing, and that is what the old minutes did off
+    # hours: they ran at :17 and :47 while bids writes at :25, so the :17 read
+    # landed eight minutes early and every off-hours build served a file the
+    # better part of an hour old. Measured across a full week before changing.
+
+    # Every ten minutes through the grain day. 12:00-21:59 UTC covers 7am-4pm
+    # Central in both CST and CDT, so the clocks changing cannot quietly shift
+    # the window out of market hours. bids polls at :03/:13/... so each of
+    # these lands four minutes after a fresh write, every time.
+    - cron: "7,17,27,37,47,57 12-21 * * 1-5"
+
+    # Every half hour outside the grain day. NOT hourly, and the reason is the
+    # hours box rather than the price: it flips to "Closed for the day" at
+    # closing time and can only be as current as the last build, so this is
+    # what decides how long the page says "open" after they have shut. At :05
+    # that is five minutes past the 5pm Central close. Hourly would make it
+    # thirty-five, and a page saying OPEN with the gate shut is the failure
+    # this box exists to prevent.
+    #
+    # The :35 is the freshness half: bids writes hourly at :25, so :35 reads a
+    # ten-minute-old file. The :05 reads a forty-minute-old one, which is the
+    # price of catching the close promptly and is worth paying.
+    - cron: "5,35 22,23,0-11 * * 1-5"
+
+    # The weekend, on the same half-hour grid rather than the old three hours.
+    # Saturday has a noon close and the box has to flip for it; at three-hourly
+    # the page could say OPEN for seventy-seven minutes after the gate shut.
+    #
+    # Note what this does NOT fix. bids polls only every three hours at the
+    # weekend -- deliberately, for reasons written into its own poll.yml -- so
+    # the FEED can still be up to two and a half hours old here however often
+    # this job runs. The scraper is the binding constraint at the weekend, not
+    # this. What the half hour buys at the weekend is the hours box, and that
+    # is enough on its own.
+    - cron: "5,35 * * * 6,0"
+  # THE FEED TELLS US, INSTEAD OF US ASKING SIX TIMES AN HOUR AND HOPING.
+  #
+  # dnilgis/bids fires this the moment Big River's price actually moves, so the
+  # page rebuilds inside a minute instead of inside a cron GitHub is not
+  # obliged to honour. Measured on 2026-08-20: the bids repository commits on
+  # every run, so its commits are an exact run count, and it recorded ONE run
+  # in the 13:00 UTC hour and TWO in the 14:00 hour against six asked. At 10:45
+  # Central the feed had moved at 10:25 and this page still said "as of
+  # 9:49am". Nothing was broken; the job had not run.
+  #
+  # THE SCHEDULE ABOVE STAYS EXACTLY AS IT WAS. It is now a safety net rather
+  # than the mechanism -- it catches a price that moved while the token was
+  # expired, and it is what runs at all if the dispatch is ever removed.
+  # Trading a working fallback for a tidier file is not a trade worth making.
+  #
+  # The payload carries which source moved and its pricedAt, so the run log
+  # says why it ran rather than just that it did.
+  repository_dispatch:
+    types: [price-moved]
+
+  workflow_dispatch:                  # the Run workflow button
+  push:
+    branches: [main]                  # so a spread change goes live at once
+
+# The commit this job makes does not retrigger it: GitHub deliberately does
+# not fire workflows from commits made with the built-in GITHUB_TOKEN.
+
+permissions:
+  contents: write
+
+concurrency:
+  # Two runs writing index.html at once is how a half-rendered page gets
+  # committed. Later run wins; the earlier one is not cancelled mid-push.
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    # A hung run holds the `prices` concurrency group, and hours.yml shares it,
+    # so every later run of both workflows queues behind it. The default is six
+    # hours. Six hours of silence looks exactly like the 2026-08-20 failure,
+    # where the box sat closed all morning with a green tick on every run.
+    timeout-minutes: 5
+    steps:
+      # WHY THIS RUN HAPPENED, when it was the feed that asked for it.
+      #
+      # THE PAYLOAD GOES THROUGH env AND NOT INTO THE SCRIPT. A
+      # repository_dispatch body is attacker-controlled in the general case, and
+      # `run: echo "${{ github.event.client_payload.x }}"` substitutes it into
+      # the shell before bash ever sees it -- a payload carrying a quote and a
+      # semicolon would run as a command, with this job's contents:write token.
+      # Only a token holder can fire this one, but the safe form costs nothing
+      # and the unsafe form is the one people copy.
+      - name: Why this run happened
+        if: github.event_name == 'repository_dispatch'
+        env:
+          FROM: ${{ github.event.client_payload.from }}
+          SOURCE: ${{ github.event.client_payload.source }}
+          PRICED_AT: ${{ github.event.client_payload.pricedAt }}
+          THEIR_RUN: ${{ github.event.client_payload.run }}
+        run: echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      # A guard that has stopped working must not be able to publish. The
+      # tests need no dependencies and take a second.
+      - name: Test the guards
+        run: node --test test/*.test.mjs
+
+      - name: Read the feed and render the panel
+        run: node tools/update-prices.mjs
+
+      # The hours box is rebuilt here too, not only by the nightly job.
+      #
+      # It said "Open today, Monday" on a Tuesday for a week, because the
+      # only thing that updates it sat at a path GitHub ignores and had
+      # never run. Its own protection -- remove the box rather than let it
+      # go stale -- assumes the job runs at all, and a job that has never
+      # started cannot remove anything.
+      #
+      # Running it here as well means the box is corrected within the hour
+      # of midnight instead of depending on one cron landing. It is allowed
+      # to fail without taking the price down with it: a wrong day is bad,
+      # a missing price is worse, and the nightly job reports the same
+      # failure where it is not competing with anything.
+      - name: Update the hours box too
+        continue-on-error: true
+        run: node tools/update-today.mjs
+
+      - name: Commit if it changed
+        run: |
+          git config user.name  "prices"
+          git config user.email "actions@github.com"
+          git add index.html bids.json bids.csv hours.json
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "prices: $(TZ=America/Chicago date '+%-d %B %-I:%M%P')"
+            git push
+          fi
