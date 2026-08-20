@@ -99,6 +99,80 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  */
 export const HROWS = /<div class="hrow">[\s\S]*?<div class="hnote">/;
 
+/* ---- THE HOURS SEARCH ENGINES READ, WHICH SAID SATURDAY -----------------
+ *
+ * FOUND LIVE 2026-08-20 on BOTH sites, and it is the same fault Jesse
+ * Cebulla reported on the 19th, one layer further down.
+ *
+ * hours.json has said `"saturday": null` since the 19th. The visible table
+ * was fixed that day and correctly reads "Saturday — Closed". The structured
+ * data did not move:
+ *
+ *     <meta itemprop="openingHours" content="Mo-Fr 08:00-17:00">
+ *     <meta itemprop="openingHours" content="Sa 08:00-12:00">     <-- open
+ *
+ * That is what Google reads for the knowledge panel. So a grower searching
+ * "Badger Grain hours" could be shown OPEN SATURDAY 8:00 AM - 12:00 PM,
+ * load a truck, drive out, and find a locked gate — while the website itself,
+ * if he opened it, said Closed. The page and the search result disagreeing is
+ * worse than either being wrong alone, because the one he checks is the one
+ * he does not visit.
+ *
+ * The comment sitting directly above those two lines in index.html states the
+ * requirement in as many words: "These must agree with the hours table further
+ * up the page ... a search result that says 7am when the gate opens at 8 is
+ * worse than no search result." It stated it. Nothing enforced it. That is the
+ * third instance this week of a comment describing a guarantee no code kept.
+ *
+ * MARKERS, NOT A BARE PATTERN ON THE TAGS. If every day is closed this renders
+ * NOTHING between the markers — and a pattern matching `<meta itemprop=...>`
+ * would then have nothing left to find and could never restore the block. That
+ * is exactly how the "Open today" box could only ever go closed once (see
+ * BOX_BLOCK above). The markers are always there whether or not anything sits
+ * between them.
+ *
+ * HARVEST IS DELIBERATELY EXCLUDED, matching the note the office wrote and the
+ * rule the weekly table already follows: harvest hours are irregular and belong
+ * in the Business Profile as special hours. So are `closed_today` and
+ * `today_override` — a closure today says nothing about next Tuesday, and
+ * telling Google otherwise would persist long after the day did. */
+export const OPENING_HOURS = /<!-- HOURS:meta -->[\s\S]*?<!-- \/HOURS:meta -->/;
+
+/* "8:00a to 5:00p" -> "08:00-17:00". Built on spanMinutes, which is the same
+   parser the box uses, so the two cannot read one string two ways. */
+export function schemaSpan(text) {
+  const span = spanMinutes(text);
+  if (!span) return null;
+  const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return `${hhmm(span[0])}-${hhmm(span[1])}`;
+}
+
+/** The openingHours meta tags for the standing week. A closed day is OMITTED:
+ *  schema.org has no "closed" spelling that Google reads reliably, and saying
+ *  nothing about Saturday is the honest form of "we are not open Saturday". */
+export function openingHoursMeta(h) {
+  const days = [["Mo-Fr", h?.weekday], ["Sa", h?.saturday], ["Su", h?.sunday]];
+  const out = [];
+  for (const [label, text] of days) {
+    /* ONE GUARD, TWO REASONS TO SKIP, and deliberately not two guards.
+       A `if (!text) continue` in front of this was strictly redundant —
+       schemaSpan(null) is null, so the second check already caught a closed
+       day — and a mutation test showed it: deleting it broke nothing, which
+       means nothing was holding it. A guard no test can distinguish is not a
+       guard, it is a comment that costs a branch. So it is a comment.
+         null  -> the day is closed, and a closed day says nothing at all:
+                  schema.org has no closed spelling Google reads reliably, so
+                  silence is the honest form.
+         junk  -> unparseable is not a licence to invent an opening time, and
+                  inventing one HERE is worse than in the box, because it goes
+                  to search engines where nobody sees it to correct it. */
+    const span = schemaSpan(text);
+    if (!span) continue;
+    out.push(`<meta itemprop="openingHours" content="${esc(label)} ${esc(span)}">`);
+  }
+  return out;
+}
+
 /* ---- THE SAME ANSWER, WORKED OUT IN THE READER'S OWN BROWSER -------------
  *
  * 2026-08-20. The box is a sentence in a static file, so it can only change
@@ -365,6 +439,21 @@ if (missing.length) {
   html = html.replace(HROWS, weeklyRows(h) + '\n      <div class="hnote">');
   console.log(`week: Mon-Fri ${h.weekday || "closed"}, ` +
               `Sat ${h.saturday || "closed"}, Sun ${h.sunday || "closed"}`);
+}
+
+/* ---- the hours search engines read ------------------------------------- */
+if (!OPENING_HOURS.test(html)) {
+  console.log("::warning title=openingHours markers not found::update-today.mjs could not " +
+    "find the <!-- HOURS:meta --> markers in index.html, so the structured data was NOT " +
+    "updated and may now disagree with the hours table above it. On 2026-08-20 that " +
+    "disagreement was telling Google both elevators open on Saturday while the page said " +
+    "closed. Add the marker pair back.");
+} else {
+  const metas = openingHoursMeta(h);
+  html = html.replace(OPENING_HOURS,
+    () => `<!-- HOURS:meta -->\n    ${metas.join("\n    ")}\n    <!-- /HOURS:meta -->`
+      .replace(/\n    \n/, "\n"));
+  console.log(`search hours: ${metas.length ? metas.length + " day range(s)" : "none — every day closed, so nothing is claimed"}`);
 }
 
 /* ---- the same answer, in the reader's browser ---------------------------

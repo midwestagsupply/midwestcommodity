@@ -4,12 +4,12 @@
   "spread": 0.1,
   "_spreadHarvest": "October and November delivery. Absent, or null, means the same as the cash spread, which is how it behaved when there was only one figure. Set it to run a different spread on new crop.",
   "spreadHarvest": 0.07,
-  "_contact": "CHECK THIS. The live bids.json on midwestcommodity.com currently publishes office@badgergrain.com as Midwest Commodity's contact, which is Badger's address. Put Midwest's own here.",
+  "_contact": "Set by Sig on 2026-08-20. Both sites publish this ONE address: one office does both elevators, which is also why both footers carry the same telephone number. It replaced office@badgergrain.com, which Midwest Commodity had been publishing as its own contact -- Badger's address on Midwest's feed. Badger published it too, and an open note in this project records that badgergrain.com may have no working MX at all, so the address that was on a licensed grain dealer's public feed may not have reached anybody. This is the only place it is configured: bids.json's terms.contact is written from here by tools/update-prices.mjs, and nothing else carries an email.",
   "company": "Midwest Commodity Service, Inc.",
   "location": "Baldwin",
   "city": "Baldwin",
   "state": "WI",
-  "contact": "office@badgergrain.com",
+  "contact": "accounting@midwestagsupply.com",
   "price_note": "Prices change with the market and are not final until you call. Grain is bought subject to the drying and discount schedule below.",
   "manual": null
 }

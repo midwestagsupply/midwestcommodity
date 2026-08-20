@@ -11,7 +11,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayBox, spanMinutes, opensAt, BOX_BLOCK, HROWS, weeklyRows }
+import { todayBox, spanMinutes, opensAt, BOX_BLOCK, HROWS, weeklyRows,
+         openingHoursMeta, schemaSpan, OPENING_HOURS }
   from "../tools/update-today.mjs";
 
 const H = {
@@ -317,4 +318,110 @@ test("the row pattern finds the rows whether or not the box is above them", () =
 test("a value from the file is escaped, not injected", () => {
   assert.match(weeklyRows({ ...H, saturday: '8a <script>x</script>' }),
     /8a &lt;script&gt;x&lt;\/script&gt;/);
+});
+
+/* ---- the hours search engines read -------------------------------------- */
+/*
+ * Found live on both sites on 2026-08-20, and it is Jesse Cebulla's bug one
+ * layer down. hours.json had said `"saturday": null` since the 19th and the
+ * visible table correctly read "Saturday — Closed", while the structured data
+ * still carried `<meta itemprop="openingHours" content="Sa 08:00-12:00">`.
+ * That is what Google reads. A grower searching for the hours could be shown
+ * OPEN SATURDAY 8:00 AM - 12:00 PM, load a truck, and find a locked gate —
+ * while the website itself said closed.
+ *
+ * The comment directly above those tags in index.html stated the requirement:
+ * "These must agree with the hours table further up the page." It stated it.
+ * Nothing enforced it.
+ */
+
+test("CLOSING SATURDAY CLOSES IT FOR GOOGLE TOO, not just on the page", () => {
+  const open = openingHoursMeta({ ...H, saturday: "8:00a to 12:00p" });
+  assert.equal(open.length, 2);
+  assert.match(open[1], /content="Sa 08:00-12:00"/);
+
+  const shut = openingHoursMeta({ ...H, saturday: null });
+  assert.equal(shut.length, 1, "a closed day is omitted, not published as open");
+  assert.doesNotMatch(shut.join(" "), /Sa /);
+  assert.match(shut[0], /content="Mo-Fr 08:00-17:00"/);
+});
+
+test("a closed day says nothing rather than saying something wrong", () => {
+  /* schema.org has no closed spelling Google reads reliably, so silence is the
+     honest form. And if every day is closed we claim nothing at all — which is
+     right: no hours beats wrong hours. */
+  assert.deepEqual(openingHoursMeta({ weekday: null, saturday: null, sunday: null }), []);
+  assert.equal(openingHoursMeta({ ...H, sunday: "9:00a to 1:00p" }).length, 3);
+});
+
+test("twelve-hour clock in, twenty-four hour clock out, and the edges hold", () => {
+  assert.equal(schemaSpan("8:00a to 5:00p"), "08:00-17:00");
+  assert.equal(schemaSpan("7:00a to 7:00p"), "07:00-19:00");
+  assert.equal(schemaSpan("8:00a to 12:00p"), "08:00-12:00", "noon is 12:00, not 00:00");
+  assert.equal(schemaSpan("12:00a to 8:00a"), "00:00-08:00", "midnight is 00:00, not 12:00");
+  assert.equal(schemaSpan("8:30a to 5:15p"), "08:30-17:15");
+});
+
+test("an unparseable span is skipped, never guessed at", () => {
+  /* The same rule the box follows: an unreadable value is not a licence to
+     invent an opening time, and inventing one HERE is worse — it goes to
+     search engines, where nobody sees it to correct it. */
+  assert.equal(schemaSpan("call us"), null);
+  assert.equal(schemaSpan("5:00p to 8:00a"), null, "a span that ends before it starts is a typo");
+  assert.equal(schemaSpan(null), null);
+  assert.equal(openingHoursMeta({ weekday: "sunup to sundown", saturday: "8:00a to 12:00p" }).length, 1);
+});
+
+test("harvest and today-only answers stay out of the structured data", () => {
+  /* Same rule the weekly table follows, and the office's own note says it:
+     harvest hours are irregular and belong in the Business Profile as special
+     hours. A closure today says nothing about next Tuesday — and a search
+     engine would keep repeating it long after the day had passed. */
+  const harvest = openingHoursMeta({ ...H, harvest_mode: true, harvest: "7:00a to 7:00p" });
+  assert.match(harvest[0], /Mo-Fr 08:00-17:00/, "the standing week, not the harvest week");
+  const closed = openingHoursMeta({ ...H, closed_today: true, today_date: "2026-08-20" });
+  assert.match(closed[0], /Mo-Fr 08:00-17:00/);
+  const over = openingHoursMeta({ ...H, today_override: "9:00a to 1:00p" });
+  assert.match(over[0], /Mo-Fr 08:00-17:00/);
+});
+
+test("the markers survive a render that writes nothing between them", () => {
+  /* This is the BOX_BLOCK lesson, applied before it could bite a second time.
+     A pattern matching the meta TAGS would have had nothing left to find once
+     every day was closed, so the block could only ever empty itself once and
+     could never come back. */
+  let page = '<section>\n    <!-- HOURS:meta -->\n    <meta itemprop="openingHours" content="Sa 08:00-12:00">\n    <!-- /HOURS:meta -->\n</section>';
+  assert.ok(OPENING_HOURS.test(page));
+  const write = (h) => {
+    const metas = openingHoursMeta(h);
+    return page.replace(OPENING_HOURS,
+      () => `<!-- HOURS:meta -->\n    ${metas.join("\n    ")}\n    <!-- /HOURS:meta -->`.replace(/\n    \n/, "\n"));
+  };
+  page = write({ weekday: null, saturday: null, sunday: null });
+  assert.doesNotMatch(page, /openingHours/, "everything closed writes nothing");
+  assert.ok(OPENING_HOURS.test(page), "and the markers are still there to write into");
+  page = write(H);
+  assert.match(page, /Mo-Fr 08:00-17:00/, "so it can come back when they reopen");
+});
+
+test("rendering twice is stable", () => {
+  /* The fault the box regex had: a rendered block must still be findable, or
+     the second run writes inside the first run's output. */
+  let page = '<!-- HOURS:meta -->\n    <!-- /HOURS:meta -->';
+  const write = () => {
+    const metas = openingHoursMeta(H);
+    page = page.replace(OPENING_HOURS,
+      () => `<!-- HOURS:meta -->\n    ${metas.join("\n    ")}\n    <!-- /HOURS:meta -->`.replace(/\n    \n/, "\n"));
+  };
+  write(); const once = page; write();
+  assert.equal(page, once);
+});
+
+test("a value from the file is escaped, not injected", () => {
+  const nasty = openingHoursMeta({ weekday: '8:00a to 5:00p', saturday: null, sunday: null });
+  assert.ok(!nasty.join("").includes('"><script'));
+  /* The span is built from parsed integers, so nothing from the file reaches
+     the attribute unparsed — which is the real defence. This pins that. */
+  assert.deepEqual(openingHoursMeta({ weekday: '8:00a to 5:00p"><script>alert(1)</script>' }), [],
+    "an unparseable value is dropped before it can be escaped or not");
 });

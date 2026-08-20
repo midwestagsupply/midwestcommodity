@@ -277,7 +277,7 @@ test("markup is escaped, so a delivery month cannot inject tags", () => {
 /* ---- the published record ---------------------------------------------- */
 
 const SITE = { company: "Badger Grain Supply, LLC", location: "Wheeler", city: "Wheeler",
-               state: "WI", contact: "office@badgergrain.com" };
+               state: "WI", contact: "accounting@midwestagsupply.com" };
 
 test("bids.json keeps the schema and the terms the sites already publish", () => {
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
@@ -288,7 +288,13 @@ test("bids.json keeps the schema and the terms the sites already publish", () =>
   assert.equal(j.count, 7);
   assert.equal(j.observed, LIVE.checkedAt);
   assert.equal(j.terms.licence, "CC0-1.0");
-  assert.equal(j.terms.contact, "office@badgergrain.com");
+  /* THE PLUMBING, NOT THE LITERAL. This asserted the address twice -- once in
+     SITE above and once here -- so it tested that somebody had typed the same
+     string in two places, which is a change-detector rather than a check. What
+     matters is that the published contact is the one the site CONFIGURED, and
+     the value itself is guarded where changing it is a deliberate act: the
+     shipped pricing.json, in the test below. */
+  assert.equal(j.terms.contact, SITE.contact);
 });
 
 test("the schema bump keeps every field a /1 consumer already read", () => {
@@ -939,4 +945,21 @@ test("a row they published no quote for at all is still a dash", () => {
   const b = board(none, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   assert.equal(b.bids[0].futures, null);
   assert.match(renderPriced(b), /class="fut r m-hide">&mdash;/);
+});
+
+test("the shipped pricing.json publishes the contact the owners chose", () => {
+  /* Changed 2026-08-20 from office@badgergrain.com. Midwest Commodity had been
+     publishing BADGER's address as its own contact, and Badger published it
+     too -- while an open note in this project records that badgergrain.com may
+     have no working MX at all, so the address on a licensed grain dealer's
+     public feed may have reached nobody. One office does both elevators, which
+     is also why both footers carry the same telephone number.
+     This is the one place the value is asserted. bids.json is generated from
+     pricing.json by tools/update-prices.mjs, so changing it here changes it
+     everywhere it is published, on the next run and not by hand. */
+  const pricing = JSON.parse(readFileSync(new URL("../pricing.json", import.meta.url), "utf8"));
+  assert.equal(pricing.contact, "accounting@midwestagsupply.com");
+  assert.doesNotMatch(pricing.contact, /badgergrain\.com/,
+    "Badger's address must not be published as either site's contact again");
+  assert.match(pricing.contact, /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i, "it has to be an address");
 });
