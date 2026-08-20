@@ -139,3 +139,24 @@ export function expireToday(h, todayISO) {
   }
   return false;
 }
+
+/* HOW LONG UNTIL THE BOX COULD NEED TO CHANGE?
+ *
+ * The box is accurate to the minute, so it repaints on the minute. Sleeping
+ * thirty seconds would be simpler and would land the eight o'clock flip up to
+ * thirty seconds late; at the other end of the day that is thirty seconds of a
+ * page telling a driver the gate is open after it has shut.
+ *
+ * THE EXTRA SECOND IS NOT PADDING. Firing exactly on the boundary means a
+ * clock a hair fast repaints while it still reads 07:59, schedules the next
+ * tick from there, and can land the following one at 08:00:59 -- so the flip
+ * that was supposed to be instant is nearly a minute late. A second past the
+ * minute costs nothing and cannot do that.
+ *
+ * Lives here rather than inline in the generated script so it can be tested
+ * without a browser, like every other rule the box depends on.
+ */
+export function msToNextMinute(nowMs) {
+  if (!Number.isFinite(nowMs)) return 60000;
+  return 60000 - (((nowMs % 60000) + 60000) % 60000) + 1000;
+}

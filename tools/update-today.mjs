@@ -262,7 +262,8 @@ export function clientScript(h, coreSource) {
   "use strict";
 ${core.split("\n").map((l) => (l ? "  " + l : l)).join("\n")}
 
-  try {
+  function paint() {
+   try {
     var data = document.getElementById("today-hours");
     if (!data) return;
     var h = JSON.parse(data.textContent);
@@ -305,8 +306,61 @@ ${core.split("\n").map((l) => (l ? "  " + l : l)).join("\n")}
     box.className = "today" + (r.open ? "" : " is-shut");
     lbl.textContent = r.label;
     hrs.textContent = r.hours;
-  } catch (e) {
+   } catch (e) {
     /* Leave the sentence the build wrote. It was right when it was written. */
+   }
+  }
+
+  paint();
+
+  /* IT HAS TO KEEP LOOKING, NOT LOOK ONCE.
+   *
+   * Measured 2026-08-20 in a real browser with the clock moved: at 07:55 the
+   * box correctly read "Closed now, Opens 8:00a"; at 08:05 WITHOUT A RELOAD it
+   * still read "Closed now". Reloading fixed it, which is the tell -- the rule
+   * was right all along and simply never ran again. At the other end of the
+   * day the same fault is worse: at 17:05 the page went on saying OPEN with
+   * the gate shut, which is the exact failure this box exists to prevent.
+   *
+   * A page on the scale-house screen, or on a phone in somebody's pocket, is
+   * not reloaded at eight o'clock. So it ticks.
+   *
+   * TO THE TOP OF THE MINUTE, not every thirty seconds. Eight o'clock should
+   * land at eight o'clock rather than up to a minute late, and a minute late
+   * on the close is a minute of a page saying come on in. */
+  /* WRAPPED, LIKE THE PAINT IS.
+   *
+   * test/clientclock.test.mjs runs this block against a deliberately minimal
+   * host and asserts that "if anything at all goes wrong the sentence the
+   * build wrote is left alone". The first version of this wiring sat OUTSIDE
+   * any guard, so on a host without setTimeout it threw where the old code
+   * had merely done nothing -- and worse, the throw happened before the
+   * visibilitychange and pageshow listeners were registered, so one missing
+   * feature took the other two down with it. A page must never be broken by
+   * the thing that keeps its clock. */
+  try {
+  var timer = null;
+  function schedule() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () { paint(); schedule(); }, msToNextMinute(Date.now()));
+  }
+  schedule();
+
+  /* A SLEEPING PHONE RUNS NO TIMERS. Waking at half past nine to a page that
+     still says "Opens 8:00a" is the same failure as never ticking. */
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) { paint(); schedule(); }
+  });
+
+  /* AND THE BACK BUTTON DOES NOT RE-RUN THIS SCRIPT. A page restored from the
+     bfcache comes back exactly as it was left, stale clock and all. Same
+     lesson the admin screen learned about restored form state. */
+  window.addEventListener("pageshow", function (e) {
+    if (e.persisted) { paint(); schedule(); }
+  });
+  } catch (e) {
+    /* The box is painted and correct as of now; it just will not follow the
+       clock on this host. Strictly better than an exception. */
   }
 })();
 </script>

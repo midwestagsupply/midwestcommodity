@@ -15,6 +15,7 @@
  * output is compared to todayBox()'s.
  */
 import { test } from "node:test";
+import { msToNextMinute } from "../tools/today-core.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
@@ -48,12 +49,19 @@ function makeDoc({ withBox = true, boxClass = "today", lbl = "SERVER LABEL", hrs
   }
   panel.appendChild(new El("hrow"));
   panel.appendChild(new El("hrow"));
+  /* Listeners are RECORDED, not ignored. The script repaints on
+     visibilitychange and on a bfcache pageshow as well as on its timer, and a
+     fake host that quietly swallows addEventListener would let all three be
+     deleted with every test still green. */
+  const listeners = { document: {}, window: {} };
   const document = {
     getElementById: (id) => { for (const n of root.walk()) if (n.id === id) return n; return null; },
     querySelector: (s) => root.querySelector(s),
     createElement: () => new El(),
+    addEventListener: (t, fn) => { (listeners.document[t] ??= []).push(fn); },
+    hidden: false,
   };
-  return { root, document, panel };
+  return { root, document, panel, listeners };
 }
 
 /* ---- run the real generated block at a real instant ---------------------- */
@@ -73,16 +81,47 @@ function runAt(instant, opts = {}) {
   const { json, code } = generated(opts.hours ?? H);
   const doc = makeDoc({ json, ...opts });
   const RealDate = Date;
-  class Frozen extends RealDate {
-    constructor(...a) { return a.length ? new RealDate(...a) : new RealDate(instant.getTime()); }
-    static now() { return instant.getTime(); }
+  /* MOVABLE, not frozen. The whole point of the box is that it follows a
+     clock, and a clock that cannot move cannot test that. `at` is what the
+     script sees; the helpers below wind it forward. */
+  let at = instant.getTime();
+  class Movable extends RealDate {
+    constructor(...a) { return a.length ? new RealDate(...a) : new RealDate(at); }
+    static now() { return at; }
   }
+  const timers = [];
+  const window = {
+    addEventListener: (t, fn) => { (doc.listeners.window[t] ??= []).push(fn); },
+  };
   const ctx = vm.createContext({
-    document: doc.document, Intl, JSON, Number, String, RegExp, Math, Object, Array,
-    Date: Frozen, console,
+    document: doc.document, window, Intl, JSON, Number, String, RegExp, Math, Object, Array,
+    Date: Movable, console,
+    setTimeout: (fn, ms) => { const id = timers.length; timers.push({ fn, ms, id, dead: false }); return id; },
+    clearTimeout: (id) => { if (timers[id]) timers[id].dead = true; },
+    ...(opts.host ?? {}),
   });
   vm.runInContext(code, ctx);
-  return doc;          // { root, document, panel }
+
+  doc.clock = {
+    timers,
+    /* The delay the script asked for last, which is the thing that decides
+       whether eight o'clock lands at eight o'clock. */
+    pending: () => timers.filter((t) => !t.dead).at(-1) ?? null,
+    set: (d) => { at = d.getTime(); },
+    /* Move the clock and fire the outstanding timer, the way a browser would. */
+    tick: (d) => {
+      at = d.getTime();
+      const t = timers.filter((x) => !x.dead).at(-1);
+      if (!t) return false;
+      t.dead = true; t.fn(); return true;
+    },
+    fire: (target, type, ev = {}) => {
+      const hs = doc.listeners[target][type] ?? [];
+      for (const fn of hs) fn(ev);
+      return hs.length;
+    },
+  };
+  return doc;          // { root, document, panel, listeners, clock }
 }
 
 /* What the build would have written at the same instant. */
@@ -299,4 +338,114 @@ test("the first run inserts its own markers, so no index.html upload is needed",
   const rendered = bootstrapped.replace(CLIENT_BLOCK, () => clientScript(H, CORE));
   assert.ok(rendered.includes("today-hours"));
   assert.ok(rendered.indexOf("TODAY:js") < rendered.indexOf("</body>"), "the block goes before </body>");
+});
+
+/* ---- IT FOLLOWS THE CLOCK, NOT JUST THE PAGE LOAD --------------------------
+ *
+ * Sig, 2026-08-20: "figure out how to get the hours to flip automatically on
+ * the time they are supposed to."
+ *
+ * Measured in a real browser before anything was changed, with the browser's
+ * own timezone set to Pacific/Auckland to prove the box follows Wisconsin:
+ *
+ *   07:55 on load          Closed now, Thursday · Opens 8:00a     right
+ *   08:05 WITHOUT reload   Closed now, Thursday · Opens 8:00a     WRONG
+ *   08:05 after reload     Open today, Thursday · 8:00a to 5:00p  right
+ *   17:05 WITHOUT reload   Open today, Thursday · 8:00a to 5:00p  WRONG, and worse
+ *
+ * The rule was right the whole time; it ran once and never again. Nobody
+ * reloads the scale-house screen at eight o'clock.
+ */
+const lblOf = (doc) => doc.root.querySelector("today")?.querySelector("today-lbl")?.textContent ?? null;
+const hrsOf = (doc) => doc.root.querySelector("today")?.querySelector("today-hrs")?.textContent ?? null;
+
+test("a tick is scheduled on load, one second past the next minute", () => {
+  const doc = runAt(new Date("2026-08-20T12:55:30Z"));   // 07:55:30 Central
+  const t = doc.clock.pending();
+  assert.ok(t, "nothing was scheduled, so the box will never change again");
+  assert.equal(t.ms, msToNextMinute(Date.parse("2026-08-20T12:55:30Z")));
+  assert.equal(t.ms, 31000);
+});
+
+test("EIGHT O'CLOCK ARRIVES WITHOUT A RELOAD", () => {
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));   // Thu 07:55 Central
+  assert.equal(lblOf(doc), "Closed now, Thursday");
+  assert.equal(hrsOf(doc), "Opens 8:00a");
+
+  assert.ok(doc.clock.tick(new Date("2026-08-20T13:00:01Z")), "no timer fired");
+  assert.equal(lblOf(doc), "Open today, Thursday");
+  assert.equal(hrsOf(doc), "8:00a to 5:00p");
+});
+
+test("and so does closing time, which is the one that matters", () => {
+  // A page still saying OPEN after the gate has shut is the failure this box
+  // was built to prevent.
+  const doc = runAt(new Date("2026-08-20T21:55:00Z"));   // Thu 16:55 Central
+  assert.equal(lblOf(doc), "Open today, Thursday");
+  assert.ok(doc.clock.tick(new Date("2026-08-20T22:00:01Z")));   // 17:00:01
+  assert.equal(lblOf(doc), "Closed for the day");
+});
+
+test("each tick schedules the next one", () => {
+  // A tick that does not reschedule fires exactly once, which looks like
+  // working for one minute and then is indistinguishable from the old bug.
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));
+  const first = doc.clock.pending();
+  doc.clock.tick(new Date("2026-08-20T12:56:01Z"));
+  const second = doc.clock.pending();
+  assert.ok(second && second.id !== first.id, "the clock stopped after one tick");
+  doc.clock.tick(new Date("2026-08-20T12:57:01Z"));
+  assert.ok(doc.clock.pending().id !== second.id, "the clock stopped after two ticks");
+});
+
+test("a phone asleep across eight o'clock repaints when it wakes", () => {
+  // A sleeping phone runs no timers at all, so the tick above never happens.
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));
+  assert.equal(lblOf(doc), "Closed now, Thursday");
+  doc.clock.set(new Date("2026-08-20T14:30:00Z"));      // 09:30 Central
+  doc.document.hidden = false;
+  assert.equal(doc.clock.fire("document", "visibilitychange"), 1, "nothing listens for a wake");
+  assert.equal(lblOf(doc), "Open today, Thursday");
+});
+
+test("a page still hidden does not bother repainting", () => {
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));
+  doc.clock.set(new Date("2026-08-20T14:30:00Z"));
+  doc.document.hidden = true;
+  doc.clock.fire("document", "visibilitychange");
+  assert.equal(lblOf(doc), "Closed now, Thursday", "repainted while hidden");
+});
+
+test("the back button repaints, because it does not re-run the script", () => {
+  // A page restored from the bfcache comes back exactly as it was left.
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));
+  doc.clock.set(new Date("2026-08-20T22:30:00Z"));      // 17:30 Central
+  assert.equal(doc.clock.fire("window", "pageshow", { persisted: true }), 1);
+  assert.equal(lblOf(doc), "Closed for the day");
+});
+
+test("an ordinary navigation is not a bfcache restore", () => {
+  // pageshow fires on every load; only the persisted one is a restore, and on
+  // a fresh load the script has just run anyway.
+  const doc = runAt(new Date("2026-08-20T12:55:00Z"));
+  doc.clock.set(new Date("2026-08-20T22:30:00Z"));
+  doc.clock.fire("window", "pageshow", { persisted: false });
+  assert.equal(lblOf(doc), "Closed now, Thursday");
+});
+
+test("midnight rolls the day over without a build", () => {
+  const doc = runAt(new Date("2026-08-21T04:55:00Z"));  // Thu 23:55 Central
+  assert.equal(lblOf(doc), "Closed for the day");
+  doc.clock.tick(new Date("2026-08-21T05:00:01Z"));     // Fri 00:00 Central
+  assert.equal(lblOf(doc), "Closed now, Friday");
+  assert.equal(hrsOf(doc), "Opens 8:00a");
+});
+
+test("A HOST WITHOUT TIMERS STILL GETS A CORRECT BOX", () => {
+  // The wiring is guarded, so a host missing setTimeout loses the ticking and
+  // nothing else. It must not lose the paint that already happened, and it
+  // must not throw -- that is this file's oldest promise.
+  const doc = runAt(new Date("2026-08-20T14:30:00Z"), { host: { setTimeout: undefined } });
+  assert.equal(lblOf(doc), "Open today, Thursday");
+  assert.equal(doc.clock.pending(), null);
 });

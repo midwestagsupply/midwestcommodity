@@ -425,3 +425,81 @@ test("a value from the file is escaped, not injected", () => {
   assert.deepEqual(openingHoursMeta({ weekday: '8:00a to 5:00p"><script>alert(1)</script>' }), [],
     "an unparseable value is dropped before it can be escaped or not");
 });
+
+/* THE BOX HAS TO KEEP LOOKING.
+ *
+ * Sig, 2026-08-20: "figure out how to get the hours to flip automatically on
+ * the time they are supposed to." Reproduced in a real browser with the clock
+ * moved and the browser's own timezone set to Pacific/Auckland:
+ *
+ *   07:55 on load          Closed now, Thursday · Opens 8:00a     correct
+ *   08:05 without reload   Closed now, Thursday · Opens 8:00a     WRONG
+ *   08:05 after reload     Open today, Thursday · 8:00a to 5:00p  correct
+ *   17:05 without reload   Open today, Thursday · 8:00a to 5:00p  WRONG, and worse
+ *
+ * The rule was right the whole time and simply never ran twice. Reloading
+ * fixed it, which is the tell. Nobody reloads the scale-house screen at eight
+ * o'clock, and a page that says OPEN after the gate has shut is the precise
+ * failure this box was built to prevent.
+ *
+ * These are structural checks on the generated script, because this repository
+ * installs nothing and CI has no browser. The browser proof lives in the
+ * session record; what a test can do here is make sure the wiring cannot be
+ * deleted quietly.
+ */
+import { msToNextMinute } from "../tools/today-core.mjs";
+import { clientScript } from "../tools/update-today.mjs";
+import { readFileSync } from "node:fs";
+
+const script = () => clientScript(
+  { weekday: "8:00a to 5:00p", saturday: null, sunday: null, harvest: "8:00a to 7:00p" },
+  readFileSync(new URL("../tools/today-core.mjs", import.meta.url), "utf8"));
+
+test("the paint is a function, and it is actually called", () => {
+  const s = script();
+  assert.match(s, /function paint\(\)/, "the repaint must be callable more than once");
+  assert.match(s, /\n  paint\(\);/, "defining it and never calling it renders nothing at all");
+});
+
+test("it schedules itself, and reschedules after each paint", () => {
+  const s = script();
+  assert.match(s, /setTimeout\(function \(\) \{ paint\(\); schedule\(\); \}/,
+    "a tick that does not schedule the next one fires exactly once");
+  assert.match(s, /msToNextMinute\(Date\.now\(\)\)/);
+});
+
+test("a sleeping phone and a back button both repaint", () => {
+  const s = script();
+  assert.match(s, /visibilitychange/, "a phone asleep across 8am runs no timers");
+  assert.match(s, /pageshow/, "bfcache restore does not re-run an inline script");
+  assert.match(s, /e\.persisted/);
+});
+
+test("msToNextMinute lands a second past the minute", () => {
+  // 12:34:00.000 -> a full minute and a second away
+  assert.equal(msToNextMinute(Date.parse("2026-08-20T12:34:00.000Z")), 61000);
+  assert.equal(msToNextMinute(Date.parse("2026-08-20T12:34:30.000Z")), 31000);
+  assert.equal(msToNextMinute(Date.parse("2026-08-20T12:34:59.000Z")), 2000);
+  assert.equal(msToNextMinute(Date.parse("2026-08-20T12:34:59.500Z")), 1500);
+});
+
+test("msToNextMinute never returns zero or a negative", () => {
+  // A zero delay is a busy loop in a page that sits open all day; a negative
+  // one is the same thing with a worse name.
+  for (const ms of [0, 1, 59999, 60000, 60001, -1, -60000, -60001, 1e12 + 37])
+    assert.ok(msToNextMinute(ms) >= 1000, `${ms} -> ${msToNextMinute(ms)}`);
+});
+
+test("a clock that is not a number still schedules a tick", () => {
+  // Better a tick a minute from now than a page that stops updating.
+  assert.equal(msToNextMinute(NaN), 60000);
+  assert.equal(msToNextMinute(undefined), 60000);
+  assert.equal(msToNextMinute(Infinity), 60000);
+});
+
+test("the generated script still parses", () => {
+  // leanCore already guards the core; this guards the wiring wrapped round it.
+  const s = script();
+  const body = s.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
+  new Function("document", "window", "Intl", body);
+});
