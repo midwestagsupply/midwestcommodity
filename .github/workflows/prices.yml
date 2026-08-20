@@ -56,6 +56,26 @@ on:
     # this. What the half hour buys at the weekend is the hours box, and that
     # is enough on its own.
     - cron: "5,35 * * * 6,0"
+  # THE FEED TELLS US, INSTEAD OF US ASKING SIX TIMES AN HOUR AND HOPING.
+  #
+  # dnilgis/bids fires this the moment Big River's price actually moves, so the
+  # page rebuilds inside a minute instead of inside a cron GitHub is not
+  # obliged to honour. Measured on 2026-08-20: the bids repository commits on
+  # every run, so its commits are an exact run count, and it recorded ONE run
+  # in the 13:00 UTC hour and TWO in the 14:00 hour against six asked. At 10:45
+  # Central the feed had moved at 10:25 and this page still said "as of
+  # 9:49am". Nothing was broken; the job had not run.
+  #
+  # THE SCHEDULE ABOVE STAYS EXACTLY AS IT WAS. It is now a safety net rather
+  # than the mechanism -- it catches a price that moved while the token was
+  # expired, and it is what runs at all if the dispatch is ever removed.
+  # Trading a working fallback for a tidier file is not a trade worth making.
+  #
+  # The payload carries which source moved and its pricedAt, so the run log
+  # says why it ran rather than just that it did.
+  repository_dispatch:
+    types: [price-moved]
+
   workflow_dispatch:                  # the Run workflow button
   push:
     branches: [main]                  # so a spread change goes live at once
@@ -81,6 +101,24 @@ jobs:
     # where the box sat closed all morning with a green tick on every run.
     timeout-minutes: 5
     steps:
+      # WHY THIS RUN HAPPENED, when it was the feed that asked for it.
+      #
+      # THE PAYLOAD GOES THROUGH env AND NOT INTO THE SCRIPT. A
+      # repository_dispatch body is attacker-controlled in the general case, and
+      # `run: echo "${{ github.event.client_payload.x }}"` substitutes it into
+      # the shell before bash ever sees it -- a payload carrying a quote and a
+      # semicolon would run as a command, with this job's contents:write token.
+      # Only a token holder can fire this one, but the safe form costs nothing
+      # and the unsafe form is the one people copy.
+      - name: Why this run happened
+        if: github.event_name == 'repository_dispatch'
+        env:
+          FROM: ${{ github.event.client_payload.from }}
+          SOURCE: ${{ github.event.client_payload.source }}
+          PRICED_AT: ${{ github.event.client_payload.pricedAt }}
+          THEIR_RUN: ${{ github.event.client_payload.run }}
+        run: echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
