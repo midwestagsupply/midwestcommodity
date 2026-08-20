@@ -25,11 +25,28 @@
      two files differ in STRUCTURE rather than in values, they start to
      drift, and a fix applied to one will silently miss the other.
 
-     This site is MIDWEST COMMODITY, and it keeps the corn yellow --
-     --brand is the same value as --yellow here. That is not redundancy: it is
-     what lets the two files stay the same shape while looking different. */
-  --brand:#f5cf4e;--brand-dk:#e2b92e;--on-brand:#111111;
-  --panel-hd:#111111;--panel-hd-fg:#ffffff;--panel-hd-as:#cccccc;
+     This site is MIDWEST COMMODITY, and it takes a DEEP PINE GREEN, so the
+     two sites are built to the same standard: a brand colour carrying white
+     text in the wordmark rule, the Call button and the panel header, with the
+     yellow left to do its one operational job on both. Until 2026-08-20 this
+     site had no brand colour of its own -- --brand was the same value as
+     --yellow, and the panel header was plain black.
+
+     THE GREEN WAS MEASURED, NOT PICKED. Green against the other site's barn
+     red is precisely the pair red-green colour blindness collapses, so every
+     candidate was simulated. A true pine green (#1f5133) is the better-looking
+     colour and lands 18 from the barn red under protanopia, below the ~25 at
+     which two colours start being taken for one another -- about one man in
+     twelve. This one carries a little blue, which is the channel protanopia
+     leaves alone, and measures:
+
+       normal 85  deuteranopia 52  PROTANOPIA 27  tritanopia 82
+
+     and 64 at its closest from the yellow it sits beside. White on it is
+     7.48:1; the "as of" tint is 5.59:1. If you change this green, re-measure
+     it against #b8332a in all four -- the hue that looks safest is not. */
+  --brand:#1c5f52;--brand-dk:#17493f;--on-brand:#ffffff;
+  --panel-hd:#1c5f52;--panel-hd-fg:#ffffff;--panel-hd-as:#cfe3de;
 
   /* THE OTHER SITE'S COLOUR, FOR THE ONE PLACE THE OTHER SITE APPEARS.
      The "Our other location" card at the foot of the page renders the SISTER
