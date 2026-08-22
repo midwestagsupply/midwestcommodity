@@ -40,6 +40,24 @@ on:
     - cron: "2,8,14,20 5,6,13,14,22,23 * * *"
   workflow_dispatch:
 
+  # A HAND EDIT TO hours.json HAS TO SHOW UP TOO.
+  #
+  # The box a farmer reads is baked into index.html, and so are the hours the
+  # in-page clock works from. Changing hours.json changes nothing anybody can
+  # see until this job runs, and its crons are around 8am, 5pm and midnight
+  # Central -- so hours edited by hand at nine in the morning appeared at five
+  # in the afternoon. `Prices` has carried this trigger for the same reason.
+  #
+  # `paths` keeps it to the file that matters: every price commit touches
+  # index.html, and without the filter each of those would start this job too.
+  #
+  # This does not fire for the staff screen's own commits -- those are pushed
+  # with GITHUB_TOKEN, which by design starts nothing. staff-update.yml
+  # dispatches this job explicitly instead.
+  push:
+    branches: [main]
+    paths: [hours.json]
+
 permissions:
   contents: write
 

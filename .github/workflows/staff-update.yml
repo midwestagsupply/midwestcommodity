@@ -1,0 +1,175 @@
+# Apply a filled-in "Update the site" issue.
+#
+# WHY THIS FILE EXISTS. Until 2026-08-20 the staff screen posted to a
+# Cloudflare Worker, which held a password, a session store and a per-IP
+# lockout so that a button could write two JSON files. This is what replaced
+# it: the screen builds a prefilled issue, somebody presses Submit, and this
+# job does the writing.
+#
+# WHY IT LIVES IN THE SITE REPOSITORY AND NOT IN emmertadmin. It has to commit
+# hours.json and pricing.json. Here, it does that with the token GitHub hands
+# every workflow. In emmertadmin it would need a personal access token with
+# write access to two other repositories, kept as a secret — which is the
+# password we just deleted, wearing a hat.
+#
+# WHO MAY DO IT. Nothing here checks. apply-update.mjs does, on the issue's
+# author_association, and refuses anyone without write access. The check lives
+# beside the change it guards rather than in YAML, so it is testable.
+
+name: staff update
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  issues: write
+  # Needed by the last step, which starts `Hours` and `Prices` so the change
+  # is on the page in a minute rather than at the next cron. Without it that
+  # call is a 403 and the office waits until five in the afternoon to see the
+  # hours they set at seven in the morning -- silently, because the fallback
+  # is simply the old behaviour.
+  actions: write
+
+concurrency:
+  group: staff-update-${{ github.event.issue.number }}
+  cancel-in-progress: false     # never interrupt a run mid-write
+
+jobs:
+  apply:
+    # The screen titles every issue it opens this way. Anything else on this
+    # repository is somebody reporting a bug, and must not be run as a form.
+    if: startsWith(github.event.issue.title, 'Update ')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The applier lives in ONE place. Copying it into both site repositories
+      # would make two of it, and two copies of a validator is how the two
+      # elevators quietly start accepting different numbers.
+      - name: Fetch the applier
+        uses: actions/checkout@v4
+        with:
+          repository: midwestagsupply/emmertadmin
+          path: .admin-tools
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Gate on the applier's own suite before letting it near the files. It is
+      # offline and takes a second, and it is the difference between "the tool
+      # is broken" and "the tool broke the site".
+      - name: Check the applier
+        working-directory: .admin-tools
+        run: node --test test/admin.test.mjs test/apply-update-full.test.mjs
+
+      # CWD is the site repository, so hours.json and pricing.json are the
+      # ones this job is meant to change.
+      - name: Apply it
+        id: apply
+        env:
+          BODY: ${{ github.event.issue.body }}
+          WHO: ${{ github.event.issue.author_association }}
+          # Who filed it, so the applier can stamp the file and the admin
+          # screen can tell the office their change actually landed. Read
+          # through env, never interpolated into a shell line -- an issue
+          # author's login is attacker-controlled in the general case.
+          BY: ${{ github.event.issue.user.login }}
+        run: node .admin-tools/tools/from-issue.mjs
+
+      - name: Say what happened, on the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/said ]; then
+            gh issue comment "${{ github.event.issue.number }}" --body-file /tmp/said
+          else
+            gh issue comment "${{ github.event.issue.number }}" \
+              --body "Nothing was changed. The job did not get as far as saying why — the Actions log has it."
+          fi
+
+      # THE APPLIER ALREADY DECIDED. from-issue.mjs writes /tmp/failed when it
+      # refused the form -- a mistyped time, a basis that is not a number -- and
+      # that file is the only record of it, because a refusal is a green run by
+      # design. Until 2026-08-22 nothing read it, so the step below closed the
+      # issue as completed on a refusal too. The office's signal that a change
+      # landed is the issue closing; closing it on a refusal says the hours
+      # changed when they did not, which is precisely what the note on "Close
+      # it" says must not happen.
+      - name: Did the applier accept it?
+        id: outcome
+        if: always()
+        run: |
+          if [ -f /tmp/failed ]; then
+            echo "applied=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "applied=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit if anything moved
+        id: commit
+        run: |
+          rm -rf .admin-tools
+          git config user.name  "emmert-bot"
+          git config user.email "bot@midwestagsupply.com"
+          git add hours.json pricing.json
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            echo "pushed=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "staff update from #${{ github.event.issue.number }}"
+          git push
+          echo "pushed=yes" >> "$GITHUB_OUTPUT"
+
+      # PUT IT ON THE PAGE NOW, DO NOT WAIT FOR THE CLOCK.
+      #
+      # This step exists because of a gap nobody would find by reading either
+      # file on its own.
+      #
+      # hours.json and pricing.json are DATA. The sentence a farmer reads is
+      # baked into index.html by `Hours` and `Prices`, and the hours the
+      # in-page clock works from are baked in with it, in the today-hours JSON
+      # island. Committing the data changes nothing anybody can see.
+      #
+      # A push would normally set those jobs going. This one does not: the push
+      # above is made with GITHUB_TOKEN, and GitHub will not start a workflow
+      # from an event raised by GITHUB_TOKEN. It is the platform's guard against
+      # a job that triggers itself for ever, and it applies here whether or not
+      # this repository wanted it.
+      #
+      # So `Prices` waits for its next cron -- ten minutes in market hours, and
+      # `Hours` waits for ITS next cron, which is around 8am, 5pm and midnight
+      # Central. The office posts "closed today" at seven in the morning, the
+      # screen says it saved, the issue closes, and the site keeps saying
+      # 8:00a to 5:00p until five in the afternoon.
+      #
+      # workflow_dispatch is the documented exception to that guard: since
+      # September 2022 GITHUB_TOKEN may raise workflow_dispatch and
+      # repository_dispatch, because those are an explicit ask rather than a
+      # side effect. Both jobs already accept it -- that is the "Run workflow"
+      # button -- and both share `concurrency: prices`, so they queue rather
+      # than race for index.html. Both are idempotent, so a dispatch that had
+      # nothing to do commits nothing.
+      - name: Put it on the page now
+        if: steps.commit.outputs.pushed == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run hours.yml  || echo "could not start Hours — the cron will pick it up"
+          gh workflow run prices.yml || echo "could not start Prices — the cron will pick it up"
+
+      # Only once the change is actually on main AND the applier accepted it.
+      # Closing an issue whose commit failed -- or whose form was refused --
+      # would tell the office the elevator's hours had changed when they had
+      # not. A refused issue is deliberately left OPEN: the form is the issue
+      # body, this workflow fires again on `edited`, so the office fixes the
+      # line they got wrong and it applies. Closing it would take that away.
+      - name: Close it
+        if: success() && steps.outcome.outputs.applied == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue close "${{ github.event.issue.number }}" --reason completed
