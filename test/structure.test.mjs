@@ -32,8 +32,13 @@ function scratch() {
   const d = mkdtempSync(join(tmpdir(), "structure-"));
   mkdirSync(join(d, "tools"), { recursive: true });
   mkdirSync(join(d, ".github", "workflows"), { recursive: true });
+  /* site.webmanifest joined this list on 2026-08-29, when index.html started
+     referencing it. check-structure requires every src/href in the page to
+     exist, so a fixture missing this file makes the checker fail on a
+     repository where nothing is wrong -- which is the one thing this test
+     exists to prevent. */
   for (const f of ["index.html", "site.css", "CNAME", ".nojekyll", "hours.json",
-                   "pricing.json", "robots.txt", "sitemap.xml"])
+                   "pricing.json", "robots.txt", "sitemap.xml", "site.webmanifest"])
     cpSync(join(REPO, f), join(d, f));
   for (const dir of ["assets", "fonts"]) cpSync(join(REPO, dir), join(d, dir), { recursive: true });
   cpSync(join(REPO, "tools", "check-structure.mjs"), join(d, "tools", "check-structure.mjs"));

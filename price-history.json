@@ -1,0 +1,133 @@
+{
+ "schema": "emmert-price-history/1",
+ "updated": "2026-08-31T22:47:54.675Z",
+ "days": {
+  "2026-08-17": {},
+  "2026-08-18": {
+   "Corn|August": 4.01,
+   "Corn|September": 4.07,
+   "Corn|October": 4.23,
+   "Corn|November": 4.23,
+   "Corn|December": 4.28,
+   "Corn|January": 4.34,
+   "Corn|February": 4.36
+  },
+  "2026-08-19": {
+   "Corn|August": 4.11,
+   "Corn|September": 4.17,
+   "Corn|October": 4.36,
+   "Corn|November": 4.36,
+   "Corn|December": 4.38,
+   "Corn|January": 4.44,
+   "Corn|February": 4.46
+  },
+  "2026-08-20": {
+   "Corn|August": 4.17,
+   "Corn|September": 4.23,
+   "Corn|October": 4.42,
+   "Corn|November": 4.42,
+   "Corn|December": 4.44,
+   "Corn|January": 4.48,
+   "Corn|February": 4.5
+  },
+  "2026-08-21": {
+   "Corn|August": 4.22,
+   "Corn|September": 4.28,
+   "Corn|October": 4.47,
+   "Corn|November": 4.47,
+   "Corn|December": 4.49,
+   "Corn|January": 4.54,
+   "Corn|February": 4.56,
+   "Corn|March": 4.64,
+   "Corn|April": 4.66,
+   "Corn|May": 4.68,
+   "Corn|June": 4.7,
+   "Corn|July": 4.7
+  },
+  "2026-08-24": {
+   "Corn|August": 4.3,
+   "Corn|September": 4.36,
+   "Corn|October": 4.54,
+   "Corn|November": 4.54,
+   "Corn|December": 4.56,
+   "Corn|January": 4.6,
+   "Corn|February": 4.62,
+   "Corn|March": 4.7,
+   "Corn|April": 4.73,
+   "Corn|May": 4.75,
+   "Corn|June": 4.76,
+   "Corn|July": 4.76
+  },
+  "2026-08-25": {
+   "Corn|August": 4.39,
+   "Corn|September": 4.45,
+   "Corn|October": 4.61,
+   "Corn|November": 4.61,
+   "Corn|December": 4.64,
+   "Corn|January": 4.69,
+   "Corn|February": 4.71,
+   "Corn|March": 4.79,
+   "Corn|April": 4.81,
+   "Corn|May": 4.83,
+   "Corn|June": 4.85,
+   "Corn|July": 4.85
+  },
+  "2026-08-26": {
+   "Corn|August": 4.52,
+   "Corn|September": 4.58,
+   "Corn|October": 4.75,
+   "Corn|November": 4.75,
+   "Corn|December": 4.77,
+   "Corn|January": 4.81,
+   "Corn|February": 4.83,
+   "Corn|March": 4.91,
+   "Corn|April": 4.93,
+   "Corn|May": 4.95,
+   "Corn|June": 4.97,
+   "Corn|July": 4.97
+  },
+  "2026-08-27": {
+   "Corn|August": 4.48,
+   "Corn|September": 4.54,
+   "Corn|October": 4.72,
+   "Corn|November": 4.72,
+   "Corn|December": 4.74,
+   "Corn|January": 4.77,
+   "Corn|February": 4.79,
+   "Corn|March": 4.87,
+   "Corn|April": 4.89,
+   "Corn|May": 4.91,
+   "Corn|June": 4.92,
+   "Corn|July": 4.92
+  },
+  "2026-08-28": {
+   "Corn|August": 4.5,
+   "Corn|September": 4.56,
+   "Corn|October": 4.75,
+   "Corn|November": 4.75,
+   "Corn|December": 4.77,
+   "Corn|January": 4.81,
+   "Corn|February": 4.83,
+   "Corn|March": 4.91,
+   "Corn|April": 4.93,
+   "Corn|May": 4.95,
+   "Corn|June": 4.96,
+   "Corn|July": 4.96
+  },
+  "2026-08-31": {
+   "Corn|August": 4.53,
+   "Corn|September": 4.59,
+   "Corn|October": 4.76,
+   "Corn|November": 4.76,
+   "Corn|December": 4.78,
+   "Corn|January": 4.82,
+   "Corn|February": 4.84,
+   "Corn|March": 4.92,
+   "Corn|April": 4.95,
+   "Corn|May": 4.97,
+   "Corn|June": 4.98,
+   "Corn|July": 4.98
+  }
+ },
+ "note": "Backfilled once from this repository's own commit history of bids.json on 2026-08-31. Keys are EXCHANGE TRADE DATES, which roll at 19:00 Central, not calendar days; weekends hold no session. A snapshot is only filed when the board's own pricedAt falls inside the same trade date, so a frozen board contributes nothing. Every value is the last cash price posted in that session, read from the file as it was committed. Nothing estimated."
+}

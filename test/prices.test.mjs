@@ -8,8 +8,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  board, payFrom, basisText, money, asOf, renderPriced, renderWithdrawn,
-  writeRegion, bidsJson, bidsCsv, CSV_HEADER, Withdraw, CONFIG,
+  board,
+  payFrom,
+  basisText,
+  money,
+  asOf,
+  renderPriced,
+  renderWithdrawn,
+  writeRegion,
+  bidsJson,
+  bidsCsv,
+  CSV_HEADER,
+  Withdraw,
+  CONFIG,
+  futParts,
+  futHtml
 } from "../tools/update-prices.mjs";
 
 const LIVE = {
@@ -257,15 +270,31 @@ test("a layout change stops the script rather than guessing where the price goes
 });
 
 test("the rendered panel uses only classes site.css actually defines", () => {
-  const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
-  const html = renderPriced(b);
-  /* Every one of these is a real selector in site.css. `fut` was the only one
-     defined and unused; the futures column is what it was always for. */
-  const known = new Set(["hd", "as", "bids", "mo", "con", "fut", "bas", "pay", "r",
-                         "m-hide", "nobid", "nobid-h", "nobid-p"]);
-  for (const m of html.matchAll(/class="([^"]+)"/g))
-    for (const c of m[1].split(/\s+/))
-      assert.ok(known.has(c), `class "${c}" is not in site.css`);
+  /* THIS NOW READS site.css. It used to carry a hand-written list with the
+     comment "every one of these is a real selector in site.css", which is a
+     copy and therefore a thing that goes out of date. It did: the change line
+     added a `chg` class that this guard never saw, because the list was the
+     authority rather than the stylesheet.
+
+     It also missed `chg` for a second reason worth writing down -- the guard
+     rendered a panel with no history, so the change line was absent from the
+     markup it checked. A guard that only inspects the empty case is not
+     inspecting the feature. Both panels are checked now. */
+  const css = readFileSync(new URL("../site.css", import.meta.url), "utf8");
+  const defined = (c) => new RegExp(`\\.${c.replace(/[-]/g, "\\$&")}(?![\\w-])`).test(css);
+
+  const hist = { schema: "emmert-price-history/1", days: {
+    "2026-08-17": { "Corn|August": 4.00, "Corn|October": 4.10 } } };
+  const panels = [
+    renderPriced(board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } })),
+    renderPriced(board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: 0.14 } }),
+                 hist, NOW),
+    renderWithdrawn(),
+  ];
+  for (const html of panels)
+    for (const m of html.matchAll(/class="([^"]+)"/g))
+      for (const c of m[1].split(/\s+/))
+        assert.ok(defined(c), `class "${c}" is used in the panel but is not a selector in site.css`);
 });
 
 test("no JavaScript, no outside requests, no emoji, and no unit word", () => {
@@ -735,7 +764,12 @@ test("FUTURES SITS LEFT OF THE BASIS, AND THE ROW CHECKS ITSELF", () => {
   assert.ok(row.indexOf('class="fut') < row.indexOf('class="bas'),
     "futures must come before basis");
   assert.ok(row.indexOf('class="bas') < row.indexOf('class="pay'));
-  assert.match(row, /class="fut r m-hide">\$4\.635<span class="con">Sep 26<\/span>/);
+  /* CHANGED 2026-08-31 WITH THE FORMAT, NOT TO GET A GREEN RUN. The quote is
+     the same 4.635; only the way it is written changed, from $4.635 to
+     $4.63 followed by a half-cent glyph in its own slot. The assertion still
+     pins the exact markup, and futParts() below pins the number. */
+  assert.match(row,
+    /class="fut r m-hide">\$4\.63<span class="q">\u00bd<\/span><span class="con">Sep 26<\/span>/);
 
   const fut = 4.635, basis = -0.62, pay = 4.02;
   assert.ok(Math.abs((pay - basis) - fut) <= 0.005 + 1e-9,
@@ -743,10 +777,41 @@ test("FUTURES SITS LEFT OF THE BASIS, AND THE ROW CHECKS ITSELF", () => {
 });
 
 test("the futures figure is shown to the precision their board printed", () => {
+  /* The requirement is unchanged and is the whole point of the column: a
+     quarter cent that the board printed must survive onto the page. What
+     changed on 2026-08-31 is how it is written -- $4.63½ instead of $4.635 --
+     after 612 quotes in the feed were measured and the fractional cent was
+     found to be 0, 25, 50 or 75 hundredths and nothing else. Rounding to the
+     cent was considered and refused: it makes 509 and 509.5 both read $5.09. */
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const html = renderPriced(b);
-  assert.match(html, /\$4\.635</, "quarter cents kept");
+  assert.match(html, /\$4\.63<span class="q">\u00bd<\/span>/, "the half cent is kept");
+  assert.doesNotMatch(html, /\$4\.64/, "and it is not rounded away");
   assert.doesNotMatch(html, /\$4\.6350/, "and not padded");
+});
+
+test("EVERY TICK THE FEED CAN SEND HAS A GLYPH, AND NOTHING ELSE IS FORCED INTO ONE", () => {
+  /* Measured across 612 quotes in 51 snapshots of the feed: the fractional
+     cent is 0, 25, 50 or 75 hundredths, 170 / 131 / 180 / 131 times. Nothing
+     else has ever appeared. If something else ever does, the exact number is
+     printed rather than bent into the nearest quarter. */
+  assert.deepEqual(futParts(5.09),    { dollars: "5.09", frac: "",  exact: false });
+  assert.deepEqual(futParts(5.0925),  { dollars: "5.09", frac: "\u00bc", exact: false });
+  assert.deepEqual(futParts(5.095),   { dollars: "5.09", frac: "\u00bd", exact: false });
+  assert.deepEqual(futParts(5.0975),  { dollars: "5.09", frac: "\u00be", exact: false });
+  assert.deepEqual(futParts(5.6075),  { dollars: "5.60", frac: "\u00be", exact: false });
+  const odd = futParts(5.123);
+  assert.equal(odd.exact, true, "a non-quarter tick is printed exactly, not rounded");
+  assert.equal(odd.dollars, "5.123");
+  assert.equal(odd.frac, null);
+});
+
+test("the whole-cent quote still gets its slot, which is what aligns the column", () => {
+  /* An empty <span class="q"> is not noise -- it is the reason $5.09 and
+     $5.33¼ occupy the same width. Measured at the panel's own size, the
+     rendered value went from a 25.5px spread across eight real quotes to
+     0.00px once the slot was always present. */
+  assert.match(futHtml(5.09), /\$5\.09<span class="q"><\/span>/);
 });
 
 test("futures is hidden on a phone, with the basis", () => {
@@ -779,6 +844,8 @@ test("THE PUBLISHED FILE STILL CARRIES NO FUTURES QUOTE", () => {
 const rowFor = (html, label) =>
   html.match(new RegExp(`<tr><td class="mo">${label}[\\s\\S]*?</tr>`))[0];
 
+const rx = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 test("THE CASH ROW CARRIES THE NEAR MONTH, THE HARVEST ROW CARRIES DECEMBER", () => {
   /* Not assumed, and not derived from a calendar here: each row shows the
      contract month Big River's own board put against that delivery. If they
@@ -792,10 +859,21 @@ test("THE CASH ROW CARRIES THE NEAR MONTH, THE HARVEST ROW CARRIES DECEMBER", ()
   /* Expected values are read out of the fixture, not typed in, so the test
      cannot quietly disagree with the board it is meant to be checking. */
   const q = (delivery) => LIVE.bids.find((r) => r.delivery === delivery).futuresPriceCents / 100;
-  assert.match(cash, new RegExp(`class="fut r m-hide">\\$${q("August")}<span class="con">Sep 26<`));
-  assert.match(harvest, new RegExp(`class="fut r m-hide">\\$${q("October")}<span class="con">Dec 26<`));
+  /* Built with futHtml(), not with a hand-written format. The virtue this test
+     already had -- expected values read out of the fixture so it cannot
+     quietly disagree with the board -- now extends to the FORMAT as well: when
+     the quarter-cent display changed on 2026-08-31 these two lines needed no
+     edit, because they ask the renderer how it writes a number rather than
+     assuming. */
+  assert.match(cash, new RegExp(`class="fut r m-hide">${rx(futHtml(q("August")))}<span class="con">Sep 26<`));
+  assert.match(harvest, new RegExp(`class="fut r m-hide">${rx(futHtml(q("October")))}<span class="con">Dec 26<`));
 
-  const month = (row) => row.match(/class="fut[^>]*>[^<]*<span class="con">([^<]+)</)[1];
+  /* [\s\S]*? and not [^<]*: the futures cell may now carry a <span class="q">
+     between the number and the contract month, and the old pattern assumed the
+     text ran straight into it. It did not fail loudly -- match() returned null
+     and the test died on "cannot read properties of null", which is the shape
+     a brittle regex takes when the markup around it moves. */
+  const month = (row) => row.match(/class="fut[^>]*>[\s\S]*?<span class="con">([^<]+)</)[1];
   assert.notEqual(month(cash), month(harvest),
     "two rows showing the same contract is the shape of a copy-paste bug");
 });
@@ -804,9 +882,10 @@ test("each row's futures figure belongs to that row's contract, not the lead one
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const html = renderPriced(b);
   const q = (delivery) => LIVE.bids.find((r) => r.delivery === delivery).futuresPriceCents / 100;
-  assert.match(rowFor(html, "Cash, corn"), new RegExp(`\\$${q("August")}<`));
-  assert.match(rowFor(html, "Harvest"), new RegExp(`\\$${q("October")}<`));
-  assert.doesNotMatch(rowFor(html, "Harvest"), new RegExp(String(q("August")).replace(".", "\\.")));
+  assert.match(rowFor(html, "Cash, corn"), new RegExp(rx(futHtml(q("August")))));
+  assert.match(rowFor(html, "Harvest"), new RegExp(rx(futHtml(q("October")))));
+  assert.doesNotMatch(rowFor(html, "Harvest"), new RegExp(rx(futHtml(q("August")))),
+    "the harvest row must not be showing the cash row's quote");
 });
 
 test("THE ROW STILL CHECKS ITSELF WHEN THE TWO SPREADS DIFFER", () => {

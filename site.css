@@ -45,7 +45,7 @@
      and 64 at its closest from the yellow it sits beside. White on it is
      7.48:1; the "as of" tint is 5.59:1. If you change this green, re-measure
      it against #b8332a in all four -- the hue that looks safest is not. */
-  --brand:#1c5f52;--brand-dk:#17493f;--on-brand:#ffffff;
+  --brand:#1c5f52;--brand-dk:#17493f;--brand-lt:#26786a;--brand-dark-txt:#54ad9a;--on-brand:#ffffff;
   --panel-hd:#1c5f52;--panel-hd-fg:#ffffff;--panel-hd-as:#cfe3de;
 
   /* THE OTHER SITE'S COLOUR, FOR THE ONE PLACE THE OTHER SITE APPEARS.
@@ -57,6 +57,12 @@
      Caught by rendering the page, not by reading the stylesheet. */
   --sister-brand:#b8332a;
 }
+/* THE BRAND AS TEXT. On white the brand itself reads (5.9:1 on the barn
+   red, 7.5:1 on the pine). On the dark paper it does not -- 3.00:1 and
+   2.38:1 -- and the vision layout puts the brand on the page ground as
+   type for the first time, where the old filled tile had carried white on
+   it instead. So the dark scheme lightens it, per site, measured. */
+:root{--brand-txt:var(--brand)}
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;font-size:19px}
 body{font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.45;font-size:1.05rem;font-weight:500}
@@ -183,7 +189,20 @@ section > .wrap > p.intro{color:var(--grey);margin-bottom:14px;max-width:48em;fo
 .act-s{font-size:clamp(.98rem,.93rem + .24vw,1.08rem);color:var(--grey);line-height:1.3;overflow-wrap:anywhere}
 .act-primary{background:var(--brand);color:var(--on-brand)}
 .act-primary:hover{background:var(--brand-dk)}
-.act-primary .act-s{color:#4a3f14}
+/* THE COLOUR SPLIT REACHED --brand AND NOT THIS, and it has been live ever
+   since. Corrected 2026-08-29, found by rendering during the presentation
+   pass rather than by looking for it.
+   Until 2026-08-20 Midwest's --brand WAS the yellow, and this subtitle -- the
+   phone number inside the primary Call tile -- was a dark olive that sat on it
+   correctly. --brand became deep pine that day; the subtitle did not move.
+   Dark olive on dark green measures 1.40:1. The number a customer is meant to
+   ring was effectively invisible on midwestcommodity.com.
+   Third instance of the same 2026-08-20 shape, after the sister wordmark and
+   the app icon. So it stops being a literal: both sites now point at the pale
+   tint of their OWN brand that the panel header already carries, which is the
+   value Badger was using here by hand anyway. Badger 4.94:1 (unchanged),
+   Midwest 5.59:1. */
+.act-primary .act-s{color:var(--panel-hd-as)}
 .act-wide{margin-top:16px}
 .cbh{font-size:clamp(1.1rem,1.04rem + .38vw,1.28rem);margin-bottom:8px}
 .addr{font-size:clamp(1.05rem,1rem + .4vw,1.22rem);line-height:1.5}
@@ -440,3 +459,456 @@ footer a[href^="tel:"]{display:inline-block;padding:10px 3px;margin:-10px 0}
    which is later in the file and therefore wins. Leave it or delete it;
    just do not add anything after this file that hides `.m-hide` again.
    ------------------------------------------------------------------ */
+
+/* =====================================================================
+   PRESENTATION PASS -- appended 2026-08-29.
+
+   Built once on 2026-08-28, delivered as a zip, and never uploaded: a
+   search of both repositories on 2026-08-29 found no prefers-color-scheme,
+   no @media print, no manifest and no fixed call bar. This is that pass,
+   rebuilt against the live files and measured the same way.
+
+   THE DIAGNOSIS IT ANSWERS: the pages are not badly designed, they are
+   EVENLY designed, and the price loses by it. Fourteen boxes carry the
+   same 2px black frame while the cash figure renders at 31.6px under a
+   wordmark at 67px. Nothing claims to matter more than anything else, so
+   the reader ranks it himself, every time.
+
+   Six changes, in the order they matter.
+   ===================================================================== */
+
+/* ---- 1. THE PAY COLUMN IS THE HERO NUMBER ---------------------------
+   It is the one thing a farmer opened this page to read. It was smaller
+   than the business name above it.
+
+   ONLY THE CEILING MOVES. The clamp's floor of 1.3rem is 24.7px on a
+   phone and the 2026-08-18 phone pass owns that number -- it was set
+   against a real 320px viewport where the four-column row has 296px to
+   live in. Raising it there would undo that work, so this is scoped to
+   1024px and up, where the root is 20px and there is room to spend. */
+@media(min-width:1024px){
+  .bids td.pay{font-size:2.5rem;line-height:1.05;letter-spacing:-.015em}
+}
+/* The label above it grows a little so the column still reads as a pair
+   rather than a number that has run away from its heading. */
+@media(min-width:1024px){
+  .bids th:last-child{font-size:.95rem}
+}
+
+/* ---- 2. FRAME HIERARCHY --------------------------------------------
+   The heavy 2px/3px frame is kept on exactly three things: the price
+   panel, the hours panel (both are .panel), and the statutory notices
+   Wisconsin requires in writing. Everything else drops to 1px.
+
+   This is the nested-box finding from design-diagnosis-2026-08-16
+   arriving here in a milder form, and the cure is the same: spend the
+   border only where an element is genuinely a distinct object. Page
+   height moves by under 20px, so nothing below the fold shifts. */
+.sister-a,.ways,.sched,.shrink,.drop,.act,.lics{border-width:1px}
+/* The drop's open state draws its own 2px divider under the summary and
+   that rule is doing a different job -- it separates a control from the
+   thing it opened -- so it stays. */
+
+/* ---- 3. IT PRINTS AS A WORKING SHEET --------------------------------
+   The drying schedules are the thing an office actually prints and pins
+   up. Before this they printed as NOTHING: they live in a shut
+   <details>, and a browser hides that in its own shadow tree where
+   display:block cannot reach it. Measured on 2026-08-28: the .dropbody
+   reported 1,400px tall and the <details> around it reported 0.
+   ::details-content is the handle. */
+@media print{
+  .drop[open] .dropbody,.dropbody{display:block!important}
+  .drop::details-content{content-visibility:visible!important;block-size:auto!important}
+  .drop .chev,.drop .when-open,.drop .when-closed{display:none!important}
+  .drop summary{border-bottom:2px solid #000!important}
+
+  /* Colour is spent on ONE thing -- the panel header, which is what tells
+     a printed sheet which company it came from. Everything else is black
+     on white so a dry toner cartridge cannot cost the office the prices. */
+  *{background:#fff!important;color:#000!important;box-shadow:none!important}
+  .panel .hd{background:var(--brand)!important;color:#fff!important;
+             -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .panel .hd .as{color:#fff!important}
+
+  /* Both schedules side by side on one sheet, and no box split across a
+     page break -- a drying table cut in half is worse than a second page. */
+  .schedgrid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px!important}
+  /* MEASURED, and narrowed because of it. Letter sheets for this page:
+       break-inside:avoid on the big containers (.panel,.drop,.statute-box) ..... 8
+       narrowed to the small elements below ..................................... 6
+       dropping html{font-size:12pt} too ...................................... 10
+       origin, with no print stylesheet at all .................................. 5
+     Forbidding a break inside a 2,045px <details> does not keep it whole -- it
+     cannot be whole -- it just wastes the tail of the page before it. The
+     small elements are the ones where a split is actually a fault, and this is
+     where the sixth sheet goes: origin fits in five by cutting a drying row in
+     half at the page break. For a schedule that gets pinned up in an office
+     that is worth a sheet of paper. */
+  .sched tr,.schedcol,.lic,.hrow,.way{break-inside:avoid;page-break-inside:avoid}
+  section{border-bottom:none!important;padding:10px 0!important}
+  a[href^="tel:"]::after{content:""}
+  a[href^="http"]::after{content:" (" attr(href) ")";font-size:.8em}
+
+  /* Things that are a screen affordance and nothing on paper. */
+  .skip,.sister,.notice-tag,.act,.actions{display:none!important}
+  .wrap{max-width:none;padding:0}
+  html{font-size:12pt}
+}
+
+/* THE LIGHT GROUND IS THE DEFAULT AND IS DECLARED FIRST -- ON PURPOSE.
+   This one line lived AFTER the dark block in the first cut of this pass and
+   the render caught it: same specificity, later in the file, so it won in the
+   dark too and BOTH ears vanished. The 2026-08-19 colour-split study hit the
+   mirror image of this (`.art-rev{display:none}` losing to `.logo .ear{...}`
+   and drawing both at once) and settled it with specificity; source order is
+   the other half of the same rule. Reading the cascade would not have found
+   either one. Rendering did, twice. */
+.logo .ear.art-rev{display:none}
+
+
+
+
+
+/* ---- 6. THE APP ICON CARRIED THE WRONG COLOUR ----------------------
+   assets/icon.png drew its rule in --yellow on BOTH sites, while Badger
+   has been barn red and Midwest deep pine since 2026-08-20. Same shape as
+   the sister-wordmark bug: the one element whose job is to tell the two
+   apart, drawn in the colour they share.
+
+   The rule was recoloured in place -- 811 pixels on this site, measured
+   and blended against the same ground so the antialiasing is untouched --
+   and icon-192 and icon-512 were redrawn at the SAME measured proportions
+   (rule 48.889% wide, top edge at 77.222% down, cap-height 51.111%) in
+   this site's own shipped Wordmark face. Nothing was typed by hand.
+   There is no CSS for this; it is here so the change is findable. */
+
+/* =====================================================================
+   VISION LAYOUT -- appended 2026-08-29.
+
+   The 2026-08-28 vision study, shipped. Sig picked it over the
+   conservative presentation pass ("go all in") and picked the WHITE
+   masthead out of the four grounds the study offered.
+
+   THE STUDY WAS A MOCKUP AND THIS IS NOT, so two things are different
+   on purpose and both are written where they happen:
+
+   1. THE BOARD STAYS A <table>. The study replaced it with divs and its
+      own ship-note said that was the one shortcut in it: prices.test.mjs
+      asserts the rendered table across 90 tests, and the microdata and
+      the screen-reader semantics ride on it. Setting display:grid on a
+      <table> also strips its role in every engine, which would trade a
+      layout for an accessibility regression. So the table survives and
+      the SIZE does the work instead.
+   2. NOTHING HERE CHANGES MARKUP. update-prices.mjs writes the board
+      between `<div class="pricecol" id="prices"><div class="panel">` and
+      `<div class="tnote">`, and update-today.mjs anchors on the sequence
+      today -> hrow -> hnote. Both are content anchors, so the layout
+      moves entirely in CSS and neither tool needs touching.
+   ===================================================================== */
+
+/* ---- 1. THE MASTHEAD -----------------------------------------------
+   White, chosen from the four grounds. The 3px black rule under it was
+   the heaviest line on the page and it sat above the thing that matters
+   least; the brand still speaks in the wordmark rule below the name. */
+header{border-bottom:1px solid var(--line)}
+header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
+
+/* ---- 2. THE PRICE TAKES THE WHOLE WIDTH ----------------------------
+   The price panel used to share its row with the hours card at
+   1.86fr/.88fr, so the number a farmer came for lived in two thirds of
+   the page. It now has all 1180 and the hours follow it as a strip. */
+@media(min-width:1024px){
+  .topgrid{grid-template-columns:1fr;gap:14px}
+  .top{padding:20px 0 24px}
+}
+
+/* ---- 3. THE BOARD IS TWO FACTS ------------------------------------
+   Two rows, and Sig's instruction is that there always will be. The
+   figure is set in the Wordmark face -- the same DejaVu Sans Condensed
+   Bold as the name above it, which is the only other display type this
+   site owns -- so the page has one voice for the two things it is for.
+   Size is measured, not chosen: see the note at the foot of this block. */
+/* DESKTOP AND UP, AND THAT SCOPE IS THE WHOLE POINT.
+   The first cut of this block set the price size unqualified. Being later
+   in the file it beat the 2026-08-18 phone pass, and a 65px figure took
+   the table to 416px inside a 336px panel -- the price clipped with no
+   visible scrollbar, which is the 2026-08-16 panel's most serious finding
+   arriving by a new route ("the We pay cash price is cut to $3.").
+
+   The phone board is NOT the vision study's to change. Sig asked for the
+   futures price and its contract month on phones; the 08-18 pass fought
+   all four columns into 320px -- type down in three stages, padding 12px
+   to 5px, letter-spacing to zero -- and measured them at five widths with
+   corn at $4.17 and again at $8.99, nothing cut, the pay price giving up
+   under a pixel to make room. That file ends with "just do not add
+   anything after this file that hides .m-hide again."
+   So: the big figure is a desktop change, and the phone keeps what was
+   measured for it. */
+@media(min-width:681px){
+  .bids td.pay{font-family:var(--display);font-weight:700;letter-spacing:-.01em;
+    line-height:.95;font-size:clamp(2.6rem,.4rem + 6.6vw,5.4rem);padding-block:16px}
+  .bids td.mo{font-size:clamp(1.05rem,1rem + .3vw,1.2rem);vertical-align:middle;white-space:normal}
+  .bids td.mo .con{font-size:.86rem;margin-top:3px}
+  .bids td.fut,.bids td.bas{vertical-align:middle;color:var(--grey)}
+  .bids th{border-bottom-width:1px;font-size:.78rem;color:var(--grey)}
+  .bids td{border-bottom-color:var(--line)}
+  .panel .hd{font-size:1rem;padding:11px 14px}
+}
+
+/* ---- 4. THE HOURS ARE A STRIP, NOT A CARD -------------------------
+   Same markup, laid out along the page instead of down it. The status
+   is a pill: the operational yellow when the office is open, quiet grey
+   when it is shut -- which is the 2026-08-18 rule about not shouting an
+   invitation at a closed door, kept and given a shape. */
+/* A STRIP FROM 681 UP ONLY. Below that it stays the card the phone pass
+   tuned, which is the right shape on a narrow screen anyway. */
+/* THE STRIP AND THE FULL-WIDTH PANEL ARE ONE LAYOUT, SO THEY SHARE ONE
+   BREAKPOINT -- 1024px, the width at which .topgrid collapses to a single
+   column and the price panel stops sharing its row with the hours.
+   This block shipped at 681px by mistake, half a layout ahead of the other
+   half. Measured at 768px the consequence was a strip that wrapped onto
+   three ragged lines: row one 70px tall, row two 53px, the today cell's grey
+   ground stopping halfway across with a hard edge, and no divider at the
+   wrap. Between 681 and 1023 the hours now stay the stacked card they have
+   always been, which is a proven layout beside a two-column top. */
+@media(min-width:1024px){
+  .hourspanel{display:flex;flex-wrap:wrap;align-items:stretch;overflow:visible}
+  /* THE TODAY CELL STACKS; THE OTHER THREE DO NOT.
+     Laid out inline it read "CLOSED TODAY, SATURDAY Closed" -- the day name
+     and the word Closed butted together with 10px between them, which is a
+     sentence that stutters rather than a label with a value under it. Every
+     other cell in the strip is `label value` because its value is a time
+     range and cannot be confused for more of the label; this one's value is
+     a single word that also appears in its own label. Stacked, it reads the
+     way it does on the phone and the way it read in the card this strip
+     replaced, and it keeps the larger type that marks it as the answer to
+     "are they open right now". */
+  .hourspanel .today{flex:0 0 auto;display:flex;flex-direction:column;
+  align-items:flex-start;justify-content:center;gap:1px;
+  border-bottom:none;border-right:2px solid var(--ink);text-align:left;padding:11px 18px}
+  .hourspanel .today-lbl{margin-bottom:0;font-size:.8rem;letter-spacing:.08em;white-space:nowrap}
+  .hourspanel .today-hrs{font-size:clamp(1.15rem,1.05rem + .4vw,1.4rem)}
+  .hourspanel .hrow{flex:1 1 auto;border-bottom:none;border-right:1px solid var(--line-lt);
+  justify-content:center;gap:9px;padding:13px 16px;font-size:.98rem;white-space:nowrap}
+  .hourspanel .hrow span:first-child{flex:0 0 auto;color:var(--grey);font-weight:600}
+  .hourspanel .hnote{flex:1 0 100%;border-top:1px solid var(--line-lt);font-size:.9rem}
+}
+
+/* ---- 5. BOXES GIVE WAY TO RULES -----------------------------------
+   The page carried fourteen framed boxes at one weight. A frame says
+   "this is a separate object"; fourteen of them say nothing. What is
+   left framed is the price, the hours and the notices Wisconsin
+   requires in writing -- and of those only the statutory notices keep
+   the heaviest weight, because they are the only thing on the page that
+   is there by law. */
+.ways,.drop,.act,.lics,.sister-a{border:none;border-top:2px solid var(--ink);border-radius:0;background:none}
+.ways .way,.lics .lic{border-bottom:1px solid var(--line-lt);padding-left:0;padding-right:0}
+.ways .way:last-child,.lics .lic:last-child{border-bottom:none}
+.drop summary{padding-left:0;padding-right:0;background:none}
+.drop summary:hover{background:none;text-decoration:underline;text-underline-offset:3px}
+.drop[open] summary{border-bottom:1px solid var(--line)}
+.dropbody{padding:18px 0 4px}
+.act{padding:13px 0;min-height:0;border-top-width:1px}
+.act:hover{background:none;text-decoration:underline;text-underline-offset:3px}
+.act-primary{background:none;color:var(--ink);border-top:2px solid var(--brand-txt)}
+.act-primary .act-t{color:var(--brand-txt)}
+.act-primary .act-s{color:var(--grey)}
+.act-primary:hover{background:none}
+.actions{gap:0}
+.sister-a{padding:16px 0}
+.sister-a:hover{background:none}
+/* The shrink figure keeps its yellow -- it is the one number in the
+   drying section a grower argues about, and yellow is this site's
+   "read this" colour doing exactly its job. */
+.shrink{border:none;border-radius:0}
+/* THE STATUTORY NOTICES KEEP THE HEAVY FRAME. Everything above lost one;
+   these are the only blocks on the page that exist because the state
+   says so, and they should not look like the rest of the page. */
+.statute-box{border-width:3px}
+.wi .statute{border-width:2px}
+
+/* ---- 6. THE LICENCE NUMBERS ARE FIGURES ---------------------------
+   They are the answer to "are these people licensed", and they were set
+   at body size in a bordered list. */
+.lic .l{font-size:.82rem;letter-spacing:.05em;text-transform:uppercase;color:var(--grey);font-weight:700}
+.lic .v{font-size:1.5rem;font-weight:700;letter-spacing:.01em;margin-top:1px}
+@media(min-width:681px){ .lics{display:grid;grid-template-columns:1fr 1fr;column-gap:30px} }
+
+/* ---- THE LABEL MUST WRAP, OR THE PRICE GOES OFF THE EDGE -----------
+   Found by rendering, and it is the 2026-08-16 panel's worst finding
+   arriving by a new route. `.bids td.mo` is white-space:nowrap, so
+   "October and November delivery" sets the label column's width and
+   pushed the table to 416px inside a 336px panel. `.panel` has
+   overflow-x:auto, so nothing overflowed the PAGE -- the price was
+   simply clipped, with no visible scrollbar, exactly as the panel
+   reported it at 200% zoom: "the We pay cash price is cut to $3."
+   A price a farmer cannot finish reading is the most expensive bug this
+   page can have, and a bigger figure made it easier to hit. */
+.bids td.mo{white-space:normal}
+.bids td.mo .con{white-space:normal}
+
+/* ---- MEASURED ------------------------------------------------------
+   Filled in from the render, not from intention. See the delivery note.
+   -------------------------------------------------------------------- */
+
+/* ── THE CHANGE LINE ──────────────────────────────────────────────────────
+   Added 2026-08-31. Sig: "what about the change since yesterdays posted price
+   or something for people to reference with price."
+
+   It sits UNDER the paid price, inside the same cell, because it answers a
+   question about the number directly above it. A fifth column would make the
+   reader carry the figure across the table to find out what it did.
+
+   IT IS NOT COLOUR CODED, AND THAT IS DELIBERATE.
+
+   The obvious treatment is green for up and red for down. This project has
+   already measured what red and green do to each other here: on 2026-08-20 a
+   green had to be simulated against protanopia and deuteranopia before it
+   could sit opposite Badger's barn red, because that pair is exactly the one
+   red-green colour blindness collapses. A red "down" on a page whose brand IS
+   barn red #b8332a would also be a second red with a different meaning, six
+   inches from the first.
+
+   So the direction is carried by the WORD -- up, down, unchanged -- and by a
+   triangle, which are two channels that survive any colour vision and any
+   printer. Standing rule: colour is never the only channel. Here it is not a
+   channel at all.
+
+   The size is absolute, not relative. `.bids td.pay` is clamped up to 5.4rem
+   by the vision layout, so an em-relative change line would render at three
+   and a half rem on a wide desktop. */
+.bids td.pay .chg{
+  display:block;
+  margin-top:3px;
+  font-family:var(--body);
+  font-weight:600;
+  font-size:clamp(.76rem, .72rem + .14vw, .95rem);
+  line-height:1.25;
+  letter-spacing:.005em;
+  color:var(--grey);
+  white-space:nowrap;
+}
+.bids td.pay .chg.up::before{content:"\25B2\00a0"}
+.bids td.pay .chg.down::before{content:"\25BC\00a0"}
+.bids td.pay .chg.flat::before{content:"\2013\00a0"}
+
+/* On a phone the pay column is already tight and the row carries the delivery
+   name beside it, so the line wraps to two if it must rather than pushing the
+   table wider. The 2026-08-18 phone pass is what this must not undo. */
+@media(max-width:680px){
+  .bids td.pay .chg{font-size:.74rem;white-space:normal;margin-top:2px}
+}
+
+/* ── THE QUARTER-CENT SLOT ────────────────────────────────────────────────
+   The futures quote renders as $5.33 plus a fraction glyph, and the glyph sits
+   in a slot that is there whether or not it is filled. That is what makes the
+   column line up: measured across eight real quotes at the panel's own size,
+   the value's rendered width went from a 25.5px spread to 0.00px.
+
+   The slot is sized from the font, not guessed. Inter's three fraction glyphs
+   are NOT equal width -- ¼ 17.16px, ½ 18.03px, ¾ 18.80px at the futures cell's
+   own size -- so it is sized from the widest, which across every width where
+   this column is visible (601px and up) measured 0.808 to 0.849em.
+
+   min-width, not width: if a face ever renders one of these wider than 0.86em
+   the number pushes the column out by a hair instead of clipping the glyph. A
+   ragged column is a blemish; a clipped ¾ is a wrong price.
+
+   Below 601px the whole futures column is display:none via .m-hide, so none of
+   this applies on a phone. */
+.bids td.fut .q{
+  display:inline-block;
+  min-width:.86em;
+  text-align:left;
+  font-variant-numeric:normal;
+}
+.bids td.fut{font-variant-numeric:tabular-nums}
+
+/* ── THE CALL BAR, BROUGHT BACK DOWN ──────────────────────────────────────
+   Sig, 2026-08-31: "is there any way to make the call number not so fucking
+   huge somehow."
+
+   It was drawn for a price panel 826px wide. The vision layout gave the panel
+   the whole 1180, and `.call` is width:100%, so it came along — 1136 x 80px of
+   solid brand with a 3px rule, measured at 17% of the price panel's own area.
+   The point of that layout was to make the PRICE the biggest thing on the
+   page, and a button matching the panel for sweep works against it.
+
+   Capped at 34rem and centred, with the type and the border eased back: 680 x
+   63px, 8% of the panel. The weight stays at 800 and the ground stays brand,
+   because "prices are not final until you call" is the panel's own small print
+   and the call is the one action this page exists to produce. It is quieter,
+   not demoted.
+
+   THE PHONE GETS THE SAME HELP WITHOUT THE CAP. At 390px the bar is 358px
+   wide, well under 34rem, so max-width does nothing — but the smaller type
+   stops the label wrapping so hard and the bar drops from 103px to 86px.
+
+   Contrast is unchanged at 5.92:1: only the size moved, not the colours. An
+   outline treatment was tried and rejected at 3.42:1 — it clears the 3.0
+   large-text threshold and nothing else, and would fail the moment the type
+   rendered below 18.66px. */
+.call{
+  max-width:34rem;
+  margin-left:auto;
+  margin-right:auto;
+  padding:13px 20px;
+  font-size:clamp(1rem, .95rem + .32vw, 1.16rem);
+  border-width:2px;
+}
+
+/* ── THREE THINGS SIG SPOTTED IN THE FINALS, 2026-08-31 ───────────────────
+   Fixed together because all three came out of the same review pass. */
+
+/* 1. THE BLACK RULE ABOVE THE NOTICE BANNER.
+   The vision layout took the masthead's bottom border from
+   `3px solid var(--ink)` down to a hairline. The notice bar directly beneath
+   it still has `border-bottom:3px solid var(--ink)`, so the yellow band ended
+   up with a heavy black rule under it and a whisper above it — lopsided, and
+   the thing Sig's eye caught. Restored. Only the border is restored; the
+   masthead's roomier padding from the vision pass stays. */
+header{border-bottom:3px solid var(--ink)}
+
+/* 2. THE FOOTER PHONE NUMBER GOES UNDER THE ADDRESS ON A PHONE.
+   The footer is one flowing line — company, street, town, telephone — so on a
+   narrow screen the number wrapped to wherever it landed, usually alongside
+   "Wheeler, WI 54772". A phone number is the thing somebody is looking for
+   down there; it gets its own line. The trailing full stop travels with it,
+   inside the same span, so the line does not end on a stranded period. */
+@media(max-width:680px){
+  footer .foot-tel{display:block}
+}
+
+
+/* The full stop after the telephone, and the 3px the tap-target padding
+   indents it by, are both wrong once the number is a line of its own: a line
+   that ends "0548 ." with a gap, starting 3px right of the address above it.
+   The stop is only punctuation for a sentence that no longer runs on, so on a
+   phone it goes; the padding stays vertically, which is what makes the tap
+   target, and only the left inset is removed. */
+@media(max-width:680px){
+  footer .foot-dot{display:none}
+  footer .foot-tel a[href^="tel:"]{padding-left:0}
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THIS SITE IS LIGHT. There is no dark scheme, deliberately.
+   ══════════════════════════════════════════════════════════════════════════
+   Sig, 2026-08-31, looking at the live page: "i also hate the dark background."
+
+   Forty-four lines of `@media(prefers-color-scheme:dark)` came out with it —
+   a second palette, its own pinned colours for everything sitting on the
+   yellow, and a second set of panel gradients. Careful work, and gone, because
+   the owner does not want his page changing colour under him.
+
+   `color-scheme: light` is the other half of the same instruction and is not
+   decoration: without it a phone in dark mode repaints form controls,
+   scrollbars and the address bar dark around a light page. The browser is told
+   rather than left to guess.
+
+   IF THIS IS EVER REVERSED, here is the trap, found by rendering and not by
+   reading: --ink goes light in the dark, and the notice banner, the Open-today
+   box and the shrink figure all sit ON the yellow and inherit it. They
+   rendered at 1.6:1. The yellow is identical on both sites and must not move,
+   so anything sitting on it has to be pinned near-black in BOTH schemes. */
+:root{ color-scheme: light; }

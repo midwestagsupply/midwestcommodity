@@ -27,6 +27,8 @@
    the price should not pretend to.
 */
 import { readFileSync, writeFileSync } from "node:fs";
+import { record, prune, change, EMPTY as HISTORY_EMPTY }
+  from "./price-history.mjs";
 
 /* ---- the decisions, all in one place ---------------------------------- */
 
@@ -126,6 +128,8 @@ export function spreadFor(delivery, spreads) {
   const harvest = spreads.harvest;
   return HARVEST_MONTHS.includes(delivery) && harvest != null ? harvest : spreads.cash;
 }
+
+export const HISTORY_PATH = "price-history.json";
 
 export const money = (n) => "$" + n.toFixed(2);
 
@@ -365,23 +369,93 @@ export function cashText(n) {
   return t.endsWith(".") ? t + "00" : /\.\d$/.test(t) ? t + "0" : t;
 }
 
-const futText = (r) => (r.futures == null ? "&mdash;" : "$" + cashText(r.futures));
+/* THE FUTURES QUOTE, IN QUARTER CENTS, IN A COLUMN THAT LINES UP.
+ *
+ * Sig, 2026-08-31: "i want you to refigure a cleaner way to display the
+ * thousanths."
+ *
+ * WHAT THE FEED ACTUALLY SENDS, measured across 612 quotes in 51 snapshots of
+ * data/boyceville.json: the fractional cent is 0, 25, 50 or 75 hundredths and
+ * NOTHING ELSE -- 170 / 131 / 180 / 131 of them. That is the CBOT quarter-cent
+ * tick, and 72% of quotes carry one. So the four decimal places `cashText`
+ * produced were never four decimal places of information; they were a quarter,
+ * a half or three quarters of a cent, spelled out the long way.
+ *
+ * Rendered at the panel's own size, $5.09 above $5.1275 gave the column a
+ * 25.5px spread. This is 0.00px: the whole-dollar part is tabular (Inter ships
+ * `tnum`, checked in the woff2), and the fraction sits in a fixed-width slot
+ * that is present whether or not there is a glyph in it. The three fraction
+ * glyphs are NOT the same width in Inter -- 17.16, 18.03 and 18.80 -- so the
+ * slot is doing real work and is sized from the widest of them.
+ *
+ * WHY NOT ROUND TO THE CENT. It would be tidier and it loses real prices: 509
+ * and 509.5 both become $5.09, 512.50 and 512.75 both become $5.13. Two
+ * different quotes reading identically on a price board is worse than a
+ * fraction. It would also break `cash - basis = futures` by up to a quarter
+ * cent for anyone checking the arithmetic, which this panel invites them to do.
+ *
+ * WHY NOT 533'2, THE EXCHANGE TICK. It is what DTN and Barchart show and it is
+ * correct, but the digit after the mark is EIGHTHS, which almost nobody outside
+ * the trade reads at a glance -- and it changes the unit halfway across a table
+ * whose other three columns are dollars.
+ *
+ * The glyphs are the precomposed characters, not an OpenType `frac` feature:
+ * the shipped Inter subset has U+00BC, U+00BD and U+00BE and does NOT have
+ * `frac`, so building a fraction from a slash would silently fall back to
+ * another face mid-number. Checked in the font files, not assumed. */
+export const QUARTER = { 0: "", 25: "\u00bc", 50: "\u00bd", 75: "\u00be" };
 
-const line = (label, sub, r) =>
+export function futParts(dollars) {
+  const cents = Math.round(dollars * 10000) / 100;   // e.g. 533.25
+  const whole = Math.floor(cents + 1e-9);
+  const frac = Math.round((cents - whole) * 100);
+  return QUARTER[frac] === undefined
+    /* Not a quarter-cent tick. It has never happened in 612 quotes, but if the
+       feed ever sends one, say the true number rather than round it into a
+       fraction that is not the price. */
+    ? { dollars: cashText(dollars), frac: null, exact: true }
+    : { dollars: (whole / 100).toFixed(2), frac: QUARTER[frac], exact: false };
+}
+
+export function futHtml(dollars) {
+  const p = futParts(dollars);
+  return p.exact
+    ? `$${p.dollars}`
+    : `$${p.dollars}<span class="q">${p.frac}</span>`;
+}
+
+const futText = (r) => (r.futures == null ? "&mdash;" : futHtml(r.futures));
+
+/* THE CHANGE LINE SITS UNDER THE PRICE, not beside it and not in its own
+   column. It answers "should I haul today", which is a question about the
+   number directly above it; a fifth column would make the reader carry the
+   figure across the table to find out what it did.
+
+   `chg` is null whenever the history cannot support a sentence, and null
+   renders NOTHING -- no dash, no "0c". See tools/price-history.mjs for why
+   that is the easy path and not a fallback. */
+const line = (label, sub, r, chg) =>
   `          <tr><td class="mo">${esc(label)}` +
   (sub ? `<span class="con">${esc(sub)}</span>` : "") + `</td>` +
   `<td class="fut r m-hide">${futText(r)}` +
   (r.futuresMonth ? `<span class="con">${esc(r.futuresMonth)}</span>` : "") + `</td>` +
   `<td class="bas r m-hide">${basisText(r.basisDollars)}</td>` +
-  `<td class="pay r">${money(r.pay)}</td></tr>`;
+  `<td class="pay r">${money(r.pay)}` +
+  (chg ? `<span class="chg ${chg.direction}">${esc(chg.text)}</span>` : "") +
+  `</td></tr>`;
 
-export function renderPriced(b) {
+export function renderPriced(b, history = HISTORY_EMPTY, when = new Date()) {
   const { spot, harvest, window } = headline(b.bids);
   if (!spot) throw new Withdraw("no rows to lead with");
 
-  const rows = [line("Cash, corn", `${spot.delivery} delivery`, spot)];
+  /* The history is keyed on commodity and delivery, which is what the reader
+     asked for is priced on -- not on the panel's label. "Cash, corn" and
+     "Harvest" are captions; Corn/August and Corn/October are the contracts. */
+  const chg = (r) => change(history, r, r.pay, when);
+
+  const rows = [line("Cash, corn", `${spot.delivery} delivery`, spot, chg(spot))];
   if (harvest)
-    rows.push(line("Harvest", window.join(" and ") + " delivery", harvest));
+    rows.push(line("Harvest", window.join(" and ") + " delivery", harvest, chg(harvest)));
 
   /* "AS OF" IS WHEN WE LOOKED, NOT WHEN THEIR BOARD MOVED.
    *
@@ -572,6 +646,7 @@ function writeIfChanged(path, next) {
 
 export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
   const site = JSON.parse(readFileSync("pricing.json", "utf8"));
+  let changedHistory = false;
   const spread = site.spread;
   if (spread === null)
     throw new Error(
@@ -651,9 +726,68 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
                    "'as of' date on the page will show it. Worth a look.");
   }
 
+  /* THE HISTORY IS READ BEFORE TODAY IS RECORDED INTO IT, so the change line
+     compares against yesterday and not against the number it is about to
+     write. Recording first would make every price "unchanged since today". */
+  /* MISSING AND UNREADABLE ARE NOT THE SAME THING, and conflating them costs
+     the whole record. A first run has no file and should get one. A file that
+     will not parse holds weeks of closes that cannot be reconstructed from
+     anywhere except the commit log, and starting a fresh one on top of it
+     destroys them — quietly, on a schedule, every half hour. So a parse
+     failure skips the WRITE as well as the line, and says so loudly enough
+     that somebody looks. */
+  let history = HISTORY_EMPTY;
+  let historyBroken = false;
+  let raw = null;
+  try { raw = readFileSync(HISTORY_PATH, "utf8"); }
+  catch { /* no file yet: first run. One will be written below. */ }
+  if (raw !== null) {
+    try { history = JSON.parse(raw); }
+    catch (e) {
+      historyBroken = true;
+      console.error(`  WARNING: ${HISTORY_PATH} will not parse (${e.message}).`);
+      console.error(`  It is NOT being overwritten — it holds the only copy of the`);
+      console.error(`  daily closes. Today's price publishes without a change line.`);
+    }
+  }
+
+  /* NOTHING ABOUT THE CHANGE LINE MAY STOP A PRICE FROM PUBLISHING.
+     This script runs every half hour on two live customer price boards. The
+     price is the product; the change line is a courtesy on top of it. A
+     corrupt price-history.json, a clock oddity, anything at all in here --
+     the price still goes up, the line just does not appear, and the run says
+     so in the log rather than failing red and freezing the board. */
   let html = readFileSync("index.html", "utf8");
-  html = writeRegion(html,
-    !b ? renderWithdrawn() : b.manual ? renderManual(b) : renderPriced(b));
+  let inner;
+  if (!b) inner = renderWithdrawn();
+  else if (b.manual) inner = renderManual(b);
+  else {
+    try {
+      inner = renderPriced(b, history, now);
+    } catch (e) {
+      console.warn(`  NOTE: the change line could not be built (${e.message}). ` +
+                   `Publishing the price without it.`);
+      inner = renderPriced(b, HISTORY_EMPTY, now);
+    }
+  }
+  html = writeRegion(html, inner);
+
+  /* A WITHDRAWN BOARD RECORDS NOTHING. If we could not read a price there is
+     no close to file, and filing the last known one would invent a day the
+     board never posted. */
+  if (!historyBroken && b && Array.isArray(b.bids) && b.bids.length) {
+    try {
+      /* The board's own pricedAt decides whether a session is running.
+         See tools/price-history.mjs: a frozen board must not file a close. */
+      const stamp = b.pricedAt ? new Date(b.pricedAt) : now;
+      const next = prune(record(history, b.bids, now, stamp));
+      if (writeIfChanged(HISTORY_PATH, JSON.stringify(next, null, 1) + "\n"))
+        changedHistory = true;
+    } catch (e) {
+      console.warn(`  NOTE: today's close could not be recorded (${e.message}). ` +
+                   `Tomorrow's change line will skip today; the price is unaffected.`);
+    }
+  }
 
   /* The small print under the price table, saved by the staff screen. Same
      reasoning as the note under the hours: a box that takes what you type and
@@ -670,6 +804,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
   }
 
   const changed = [];
+  if (changedHistory) changed.push(HISTORY_PATH);
   if (writeIfChanged("index.html", html)) changed.push("index.html");
 
   /* `generated` would otherwise churn on every run, so it is carried over
