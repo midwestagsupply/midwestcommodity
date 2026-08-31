@@ -1,9 +1,9 @@
 location,company,city,state,commodity,bidType,deliveryStart,deliveryEnd,futuresSymbol,basis,cashPrice
-Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,August,August,,-0.62,4.53
-Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,September,September,,-0.56,4.59
-Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,October,October,,-0.62,4.76
-Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,November,November,,-0.62,4.76
-Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,December,December,,-0.60,4.78
+Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,August,August,,-0.62,4.52
+Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,September,September,,-0.56,4.58
+Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,October,October,,-0.62,4.75
+Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,November,November,,-0.62,4.75
+Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,December,December,,-0.60,4.77
 Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,January,January,,-0.70,4.82
 Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,February,February,,-0.68,4.84
 Baldwin,"Midwest Commodity Service, Inc.",Baldwin,WI,Corn,cash,March,March,,-0.60,4.92
