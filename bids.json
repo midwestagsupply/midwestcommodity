@@ -1,8 +1,8 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-08-31T07:26:33.674Z",
-  "observed": "2026-08-31T07:21:06.851Z",
-  "pricedAt": "2026-08-31T07:21:06.851Z",
+  "generated": "2026-08-31T08:26:32.919Z",
+  "observed": "2026-08-31T08:21:08.619Z",
+  "pricedAt": "2026-08-31T08:21:08.619Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
@@ -15,73 +15,73 @@
       "commodity": "Corn",
       "delivery": "August",
       "basis": -0.62,
-      "cashPrice": 4.54
+      "cashPrice": 4.53
     },
     {
       "commodity": "Corn",
       "delivery": "September",
       "basis": -0.56,
-      "cashPrice": 4.6
+      "cashPrice": 4.59
     },
     {
       "commodity": "Corn",
       "delivery": "October",
       "basis": -0.62,
-      "cashPrice": 4.77
+      "cashPrice": 4.76
     },
     {
       "commodity": "Corn",
       "delivery": "November",
       "basis": -0.62,
-      "cashPrice": 4.77
+      "cashPrice": 4.76
     },
     {
       "commodity": "Corn",
       "delivery": "December",
       "basis": -0.6,
-      "cashPrice": 4.79
+      "cashPrice": 4.78
     },
     {
       "commodity": "Corn",
       "delivery": "January",
       "basis": -0.7,
-      "cashPrice": 4.84
+      "cashPrice": 4.83
     },
     {
       "commodity": "Corn",
       "delivery": "February",
       "basis": -0.68,
-      "cashPrice": 4.86
+      "cashPrice": 4.85
     },
     {
       "commodity": "Corn",
       "delivery": "March",
       "basis": -0.6,
-      "cashPrice": 4.94
+      "cashPrice": 4.93
     },
     {
       "commodity": "Corn",
       "delivery": "April",
       "basis": -0.64,
-      "cashPrice": 4.96
+      "cashPrice": 4.95
     },
     {
       "commodity": "Corn",
       "delivery": "May",
       "basis": -0.62,
-      "cashPrice": 4.98
+      "cashPrice": 4.97
     },
     {
       "commodity": "Corn",
       "delivery": "June",
       "basis": -0.62,
-      "cashPrice": 4.98
+      "cashPrice": 4.97
     },
     {
       "commodity": "Corn",
       "delivery": "July",
       "basis": -0.62,
-      "cashPrice": 4.98
+      "cashPrice": 4.97
     }
   ]
 }
