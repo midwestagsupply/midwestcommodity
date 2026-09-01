@@ -1,87 +1,81 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-09-01T00:24:43.378Z",
-  "observed": "2026-09-01T00:21:09.302Z",
-  "pricedAt": "2026-09-01T00:21:09.302Z",
+  "generated": "2026-09-01T01:45:11.227Z",
+  "observed": "2026-09-01T01:40:25.008Z",
+  "pricedAt": "2026-09-01T01:40:25.008Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
     "note": "Cash bids and basis are the posting companies' own numbers, free to use, reproduce and redistribute. No exchange-licensed futures prices are included. Bids are indications, not offers, and change without notice. Call the elevator to confirm before hauling.",
     "contact": "accounting@midwestagsupply.com"
   },
-  "count": 12,
+  "count": 11,
   "bids": [
-    {
-      "commodity": "Corn",
-      "delivery": "August",
-      "basis": -0.62,
-      "cashPrice": 4.53
-    },
     {
       "commodity": "Corn",
       "delivery": "September",
       "basis": -0.56,
-      "cashPrice": 4.59
+      "cashPrice": 4.56
     },
     {
       "commodity": "Corn",
       "delivery": "October",
       "basis": -0.62,
-      "cashPrice": 4.76
+      "cashPrice": 4.74
     },
     {
       "commodity": "Corn",
       "delivery": "November",
       "basis": -0.62,
-      "cashPrice": 4.76
+      "cashPrice": 4.74
     },
     {
       "commodity": "Corn",
       "delivery": "December",
       "basis": -0.6,
-      "cashPrice": 4.78
+      "cashPrice": 4.76
     },
     {
       "commodity": "Corn",
       "delivery": "January",
       "basis": -0.7,
-      "cashPrice": 4.82
+      "cashPrice": 4.81
     },
     {
       "commodity": "Corn",
       "delivery": "February",
       "basis": -0.68,
-      "cashPrice": 4.84
+      "cashPrice": 4.83
     },
     {
       "commodity": "Corn",
       "delivery": "March",
       "basis": -0.6,
-      "cashPrice": 4.92
+      "cashPrice": 4.91
     },
     {
       "commodity": "Corn",
       "delivery": "April",
       "basis": -0.64,
-      "cashPrice": 4.95
+      "cashPrice": 4.93
     },
     {
       "commodity": "Corn",
       "delivery": "May",
       "basis": -0.62,
-      "cashPrice": 4.97
+      "cashPrice": 4.95
     },
     {
       "commodity": "Corn",
       "delivery": "June",
       "basis": -0.62,
-      "cashPrice": 4.98
+      "cashPrice": 4.96
     },
     {
       "commodity": "Corn",
       "delivery": "July",
       "basis": -0.62,
-      "cashPrice": 4.98
+      "cashPrice": 4.96
     }
   ]
 }
