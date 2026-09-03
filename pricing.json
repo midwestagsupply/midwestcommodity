@@ -3,7 +3,7 @@
   "_spread": "Ten cents under Big River, confirmed by the owners 2026-08-18, and the same figure at both locations. Because cash = futures + basis, ten cents off their cash is the same arithmetic as ten cents off their basis; the page shows OUR basis, which is theirs less this. Confirmed the same as Badger's on 2026-08-18. If one changes, change one.",
   "spread": 0.1,
   "_spreadHarvest": "October and November delivery. Absent, or null, means the same as the cash spread, which is how it behaved when there was only one figure. Set it to run a different spread on new crop.",
-  "spreadHarvest": 0,
+  "spreadHarvest": 0.03,
   "_contact": "Set by Sig on 2026-08-20. Both sites publish this ONE address: one office does both elevators, which is also why both footers carry the same telephone number. It replaced office@badgergrain.com, which Midwest Commodity had been publishing as its own contact -- Badger's address on Midwest's feed. Badger published it too, and an open note in this project records that badgergrain.com may have no working MX at all, so the address that was on a licensed grain dealer's public feed may not have reached anybody. This is the only place it is configured: bids.json's terms.contact is written from here by tools/update-prices.mjs, and nothing else carries an email.",
   "company": "Midwest Commodity Service, Inc.",
   "location": "Baldwin",
@@ -12,6 +12,6 @@
   "contact": "accounting@midwestagsupply.com",
   "price_note": "Prices change with the market and are not final until you call. Grain is bought subject to the drying and discount schedule below.",
   "manual": null,
-  "updated_at": "2026-09-01T17:08:48.916Z",
+  "updated_at": "2026-09-03T16:33:47.795Z",
   "updated_by": "midwestagsupply"
 }
