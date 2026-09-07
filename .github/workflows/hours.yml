@@ -82,17 +82,38 @@ jobs:
         with: { node-version: "20" }
 
       # A guard that has stopped working must not be able to publish.
+      # THE DRIFT GUARD ON THE TWO STATUTORY NOTICES HAD NEVER RUN.
+      # tools/check-notices.mjs exists to catch the two sites' ATCP 99.14(2)(a)
+      # and 99.26(2)(a) text drifting apart -- they are in separate repos and
+      # one can be edited without the other. It was referenced by no workflow
+      # and no test: a working guard nothing invoked. It is cheap and it is
+      # about the only text on the page that is there by law.
+      - name: Statutory notices
+        run: node tools/check-notices.mjs
+
       - name: Test the guards
         run: node --test test/*.test.mjs
 
       - name: Update the hours box
         run: node tools/update-today.mjs
 
+      # LASTMOD IS THE ONLY REASON A ONE-PAGE SITE HAS A SITEMAP, and it had
+      # read 2026-08-17 for twenty days while this job rewrote the page several
+      # times a day. tools/update-sitemap.mjs was written to keep it honest and
+      # was wired into nothing. It hashes the page with the timestamp and the
+      # hours box stripped out, so a price change moves lastmod and a clock
+      # tick does not -- which only became true with the regex fix in the same
+      # kit as this step. Allowed to fail: a stale lastmod is a bad day for
+      # crawling, a missing price is a bad day for the elevator.
+      - name: Date the sitemap
+        continue-on-error: true
+        run: node tools/update-sitemap.mjs
+
       - name: Commit if it changed
         run: |
           git config user.name  "hours"
           git config user.email "actions@github.com"
-          git add index.html hours.json
+          git add index.html hours.json sitemap.xml
           if git diff --staged --quiet; then
             echo "nothing changed"
           else
