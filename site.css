@@ -250,6 +250,11 @@ footer{padding:22px 0 30px;font-size:.95rem;color:var(--grey);line-height:1.7}
   th,td{padding-left:18px;padding-right:18px}
   .cgrid{grid-template-columns:1fr 1fr;gap:30px}
   .actions{grid-template-columns:1fr 1fr}
+  /* Call, Text, and Get directions -- three tiles in two columns, so the third
+     sat in the left half of its own row beside an empty cell at every width
+     from 681px up. On the one block whose whole job is call / text / drive
+     here, the third route read as something left over. */
+  .actions > .act:last-child:nth-child(3){grid-column:1/-1}
 }
 @media(min-width:900px){ .schedgrid{grid-template-columns:1fr 1fr} }
 @media(min-width:1024px){
@@ -528,7 +533,15 @@ footer a[href^="tel:"]{display:inline-block;padding:10px 3px;margin:-10px 0}
   *{background:#fff!important;color:#000!important;box-shadow:none!important}
   .panel .hd{background:var(--brand)!important;color:#fff!important;
              -webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .panel .hd .as{color:#fff!important}
+  /* THE ONE FIELD THAT DATES THE SHEET WAS PRINTING WHITE ON WHITE.
+     `*{background:#fff!important}` above is the only background rule that
+     matches this span, so it computed opaque white and punched a blank
+     rectangle out of the brand bar -- while `.panel .hd` kept its colour,
+     because its selector outranks `*`. A sheet printed on the 6th and pinned
+     up in the scale house read "Prices paid today - $4.62" with nothing
+     anywhere on it saying when. Paper outlives the page. */
+  .panel .hd .as{color:#fff!important;background:var(--brand)!important;
+                 -webkit-print-color-adjust:exact;print-color-adjust:exact}
 
   /* Both schedules side by side on one sheet, and no box split across a
      page break -- a drying table cut in half is worse than a second page. */
@@ -733,6 +746,14 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
 .lic .l{font-size:.82rem;letter-spacing:.05em;text-transform:uppercase;color:var(--grey);font-weight:700}
 .lic .v{font-size:1.5rem;font-weight:700;letter-spacing:.01em;margin-top:1px}
 @media(min-width:681px){ .lics{display:grid;grid-template-columns:1fr 1fr;column-gap:30px} }
+/* AND THE DIVIDER BETWEEN THEM STOPS BEING A DIVIDER. .lic carries a
+   border-bottom and :last-child clears it, which is right in a stacked list.
+   Once the list is two columns the two licences share a bottom edge, so the
+   left one kept a 553px rule with nothing under it and 30px of daylight to its
+   right -- measured at 1440, immediately under "Licensed by the State of
+   Wisconsin". nth-last-child(-n+2) clears the bottom row at any count, not
+   only at two. */
+@media(min-width:681px){ .lics .lic:nth-last-child(-n+2){border-bottom:none} }
 
 /* ---- THE LABEL MUST WRAP, OR THE PRICE GOES OFF THE EDGE -----------
    Found by rendering, and it is the 2026-08-16 panel's worst finding
@@ -780,7 +801,14 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
 .bids td.pay .chg{
   display:block;
   margin-top:3px;
-  font-family:var(--body);
+  /* --body IS NOT A VARIABLE THIS FILE DEFINES. The names are --font and
+     --display. var(--body) is therefore invalid at computed-value time,
+     font-family falls back to inherit, and the parent `.bids td.pay` supplies
+     var(--display) -- so "up 3 cents from Monday" rendered in the condensed
+     Wordmark logo face, in the same physical file as the mark at the top of
+     the page. Only at 681px and up, because that is where td.pay picks up
+     --display; on a phone it was correct, which is why it survived. */
+  font-family:var(--font);
   font-weight:600;
   font-size:clamp(.76rem, .72rem + .14vw, .95rem);
   line-height:1.25;
@@ -912,3 +940,17 @@ header{border-bottom:3px solid var(--ink)}
    rendered at 1.6:1. The yellow is identical on both sites and must not move,
    so anything sitting on it has to be pinned near-black in BOTH schemes. */
 :root{ color-scheme: light; }
+
+
+/* ---- the page stopped being built ---------------------------------------
+   Set by the PRICE:stale script only, and only past a day with no rebuild.
+   Never rendered on a healthy site. Loud on purpose: the number it sits above
+   is a real price that was true once, which is exactly the kind of wrong that
+   gets read as right. */
+.panel.is-stale .hd{background:var(--ink)}
+.stalewarn{
+  margin:0;padding:12px 16px;
+  background:var(--yellow);color:var(--ink);
+  font-weight:700;line-height:1.4;
+  border-bottom:2px solid var(--ink);
+}

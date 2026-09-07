@@ -114,6 +114,39 @@ export function payFrom(cash, spread) {
 export const basisFrom = (basis, spread) =>
   Math.round((basis - spread) * 10000) / 10000;
 
+/* ---- OUR OWN BASIS, AGAINST THE CONTRACT MONTH -------------------------
+ *
+ * The other way round from everything above it. Instead of taking cents off
+ * their cash, we add our own basis to the futures quote their board carries:
+ *
+ *     what we pay = futures + our basis
+ *
+ * The basis is SIGNED and said the way a grain man says it -- -0.75 is
+ * seventy-five under, +0.05 is a nickel over. Nothing here is a differential
+ * to Big River's commercial decision any more; the only thing of theirs left
+ * in the arithmetic is the contract quote.
+ *
+ * Same rounding rule as payFrom, and for the same reason: nearest cent,
+ * halves away from zero, never truncation, because truncation always rounds
+ * in the elevator's favour. It is written out rather than shared so that
+ * neither path can be changed without the other being looked at. */
+export function payFromBasis(futures, basis) {
+  const exact = futures + basis;
+  return Math.sign(exact) * Math.round(Math.abs(exact) * 100) / 100;
+}
+
+/* Which of the two figures a delivery month takes. Same buckets as
+   spreadFor, deliberately -- old crop and new crop are the decision the
+   office actually makes, and the screen has two boxes because of it. */
+export function basisFor(delivery, basis) {
+  const harvest = basis.harvest;
+  return HARVEST_MONTHS.includes(delivery) && harvest != null ? harvest : basis.cash;
+}
+
+/* A basis this far from zero is a typo, not a market. Same figure the applier
+   and the staff screen already refuse at, so the three agree. */
+export const BASIS_ABS_MAX = 1.5;
+
 /* ONE SPREAD PER BUCKET, NOT ONE FOR THE WHOLE BOARD.
  *
  * Old crop and new crop are different decisions. Ten cents under for corn off
@@ -146,7 +179,7 @@ export class Withdraw extends Error {}
 /* Everything that decides whether a price may be published. Pure, so the
    tests can put it in every state a real calendar produces without a
    network or a clock. */
-export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
+export function board(feed, { now, spreads, basis = null, maxAgeH = FEED_MAX_AGE_H } = {}) {
   if (!feed || typeof feed !== "object")
     throw new Withdraw("the feed file did not parse as an object");
 
@@ -219,7 +252,42 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
       if (off > 1e-6) lagging++;
     }
 
-    const spread = spreadFor(b.delivery, spreads);
+    const futures = typeof b.futuresPriceCents === "number" ? b.futuresPriceCents / 100 : null;
+    const spread = basis ? null : spreadFor(b.delivery, spreads);
+    const ours = basis ? basisFor(b.delivery, basis) : basisFrom(b.basisDollars, spread);
+
+    /* NO CONTRACT QUOTE, NO PRICE -- in this mode only. On the spread path a
+       row without futures was merely uncheckable and still publishable,
+       because the price came off their cash. Here the futures quote IS the
+       price, so a row without one has nothing to publish and says so rather
+       than falling back to a number from a different arithmetic. */
+    if (basis && futures == null)
+      throw new Withdraw(
+        `${b.delivery} carries no futures quote, and the basis is set against ` +
+        `the contract month, so there is nothing to add it to.`);
+
+    /* THE CAP IS CHECKED HERE TOO, NOT ONLY WHERE THE FILE IS READ.
+       main() already refuses a basis past BASIS_ABS_MAX, and that is the real
+       path -- but board() is exported, it is what the tests drive, and it is
+       the function that decides what a grower is handed. A -1.90 basis on a
+       5.3675 contract posts $3.47, which is inside the 2-12 range guard and a
+       dollar fifteen under the board. Measured: it published. */
+    if (basis && Math.abs(ours) > BASIS_ABS_MAX)
+      throw new Withdraw(
+        `the ${HARVEST_MONTHS.includes(b.delivery) ? "new-crop" : "cash"} basis is ` +
+        `${ours}, further than ${BASIS_ABS_MAX} from zero. That is a typo, not a market.`);
+
+    const pay = basis ? payFromBasis(futures, ours) : payFrom(b.cash, spread);
+
+    /* The range guard applies to what a grower is handed, not only to what
+       their board says. On the spread path our price is within a dollar or so
+       of theirs by construction; on this one it is futures plus a number
+       somebody typed. */
+    if (basis && (pay < FLOOR || pay > CEILING))
+      throw new Withdraw(
+        `${b.delivery} would post at ${pay} from a ${futures} contract and a ` +
+        `${ours} basis, outside ${FLOOR}-${CEILING}. That is a typo, not a market.`);
+
     out.push({
       seq: typeof b.seq === "number" ? b.seq : out.length,
       commodity: b.commodity ?? "Corn",
@@ -227,12 +295,12 @@ export function board(feed, { now, spreads, maxAgeH = FEED_MAX_AGE_H } = {}) {
       futuresMonth: b.futuresMonth ?? null,
       cash: b.cash,
       theirBasis: b.basisDollars,                // kept for the log, never shown
-      basisDollars: basisFrom(b.basisDollars, spread),   // ours
+      basisDollars: ours,
       /* null travels through as null: the page prints a dash for it, and a
          figure nobody could verify never reaches a customer. */
-      futures: typeof b.futuresPriceCents === "number" ? b.futuresPriceCents / 100 : null,
-      pay: payFrom(b.cash, spread),
-      spread,                                    // which one was applied
+      futures,
+      pay,
+      spread,                                    // null on the basis path
     });
   }
 
@@ -474,14 +542,22 @@ export function renderPriced(b, history = HISTORY_EMPTY, when = new Date()) {
    * this is the state". At 4:49 we looked and the price was $4.17, so "as of
    * 4:49pm" is exactly the sentence.
    *
-   * pricedAt is not lost -- it is in bids.json and bids.csv, which are the
-   * record. The header is not the record; it is the answer to "is this the
-   * price right now". */
+   * pricedAt is not lost -- it is in bids.json, which is the record. The
+   * header is not the record; it is the answer to "is this the price right
+   * now".
+   *
+   * THIS PARAGRAPH USED TO SAY "bids.json AND bids.csv" AND THE CSV HALF WAS
+   * FALSE. CSV_HEADER below carries no timestamp column of any kind, so a
+   * consumer reading the CSV cannot tell when a single row was priced or read.
+   * Left as it is rather than quietly fixed: bids.csv is a published feed with
+   * consumers outside this repository, and adding columns to it is a decision
+   * about them, not a typo in a comment. */
   return `      <div class="hd">Prices paid today<span class="as">as of ${esc(asOf(b.checkedAt ?? b.pricedAt))}</span></div>
       <table class="bids">
+        <caption class="sr-only">Cash corn bids by delivery month</caption>
         <thead>
-          <tr><th>Delivery</th><th class="r m-hide">Futures</th>` +
-          `<th class="r m-hide">Basis</th><th class="r">We pay</th></tr>
+          <tr><th scope="col">Delivery</th><th scope="col" class="r m-hide">Futures</th>` +
+          `<th scope="col" class="r m-hide">Basis</th><th scope="col" class="r">We pay</th></tr>
         </thead>
         <tbody>
 ${rows.join("\n")}
@@ -557,9 +633,10 @@ export function renderManual(b) {
     `<td class="pay r">${money(r.pay)}</td></tr>`).join("\n");
   return `      <div class="hd">Prices paid today<span class="as">posted by the office</span></div>
       <table class="bids">
+        <caption class="sr-only">Cash corn bids by delivery month</caption>
         <thead>
-          <tr><th>Delivery</th><th class="r m-hide">Futures</th>` +
-          `<th class="r m-hide">Basis</th><th class="r">We pay</th></tr>
+          <tr><th scope="col">Delivery</th><th scope="col" class="r m-hide">Futures</th>` +
+          `<th scope="col" class="r m-hide">Basis</th><th scope="col" class="r">We pay</th></tr>
         </thead>
         <tbody>
 ${rows}
@@ -647,8 +724,10 @@ function writeIfChanged(path, next) {
 export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
   const site = JSON.parse(readFileSync("pricing.json", "utf8"));
   let changedHistory = false;
+  /* Read first so the spread checks below can stand down once it is set. */
+  const ourBasis = site.basis;
   const spread = site.spread;
-  if (spread === null)
+  if (spread === null && ourBasis == null)
     throw new Error(
       "pricing.json has no spread yet.\n" +
       "  This is the number that decides what a grower is paid, and nobody has\n" +
@@ -658,15 +737,43 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
       "  Set \"spread\" in pricing.json to the dollars-under-Big-River figure the\n" +
       "  owners have agreed, then run again. Until then no price is published,\n" +
       "  and the page keeps saying 'Call for today's price', which is true.");
-  if (typeof spread !== "number" || !Number.isFinite(spread) || spread < 0)
+  if (ourBasis == null && (typeof spread !== "number" || !Number.isFinite(spread) || spread < 0))
     throw new Error(`pricing.json spread must be a number at or above zero, got ${JSON.stringify(spread)}`);
 
   const harvest = site.spreadHarvest;
-  if (harvest != null && (typeof harvest !== "number" || !Number.isFinite(harvest) || harvest < 0))
+  if (ourBasis == null && harvest != null &&
+      (typeof harvest !== "number" || !Number.isFinite(harvest) || harvest < 0))
     throw new Error(
       `pricing.json spreadHarvest must be a number at or above zero, or absent to ` +
       `mean the same as the cash spread. Got ${JSON.stringify(harvest)}.`);
   const spreads = { cash: spread, harvest: harvest ?? null };
+
+  /* ---- OUR OWN BASIS, IF THE OFFICE HAS SET ONE ------------------------
+     Present means this site prices itself: futures plus this figure. Absent
+     means the old spread path, unchanged, which is what makes the order these
+     files are uploaded in unable to matter. */
+  /* ourBasis is declared at the top of main() now, so the spread checks can
+     stand down once a basis is set. */
+  let basis = null;
+  if (ourBasis == null && site.basisHarvest != null)
+    throw new Error(
+      "pricing.json has a basisHarvest and no basis. New crop cannot price itself: " +
+      "an absent basisHarvest means 'same as the cash basis', so there has to be a " +
+      "cash basis for it to be the same as. Set \"basis\", or remove \"basisHarvest\".");
+  if (ourBasis != null) {
+    if (typeof ourBasis !== "number" || !Number.isFinite(ourBasis))
+      throw new Error(`pricing.json basis must be a number, got ${JSON.stringify(ourBasis)}`);
+    if (Math.abs(ourBasis) > BASIS_ABS_MAX)
+      throw new Error(
+        `pricing.json basis is ${ourBasis}, further than ${BASIS_ABS_MAX} from zero. ` +
+        `Signed: -0.75 is seventy-five under, +0.05 is a nickel over.`);
+    const oh = site.basisHarvest;
+    if (oh != null && (typeof oh !== "number" || !Number.isFinite(oh) || Math.abs(oh) > BASIS_ABS_MAX))
+      throw new Error(
+        `pricing.json basisHarvest must be a number within ${BASIS_ABS_MAX} of zero, ` +
+        `or absent to mean the same as the cash basis. Got ${JSON.stringify(oh)}.`);
+    basis = { cash: ourBasis, harvest: oh ?? null };
+  }
 
   let b = null, why = null;
   /* The override is checked FIRST, because that is what the screen promises:
@@ -701,7 +808,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
         console.log(`  the directory could not be read (${e.message}); using the feed file's own checkedAt`);
       }
 
-      b = board({ ...feed, checkedAt }, { now, spreads });
+      b = board({ ...feed, checkedAt }, { now, spreads, basis });
     } catch (e) {
       if (!(e instanceof Withdraw) && !(e instanceof SyntaxError) && !(e instanceof TypeError)) throw e;
       why = e.message;
@@ -717,9 +824,14 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
     console.log("  The automatic reading is being overridden and will stay overridden");
     console.log("  until the by-hand boxes are cleared on the staff screen.");
   } else {
-    const used = [...new Set(b.bids.map((r) => r.spread))];
+    const onBasis = b.bids.some((r) => r.spread == null);
+    const used = [...new Set(b.bids.map((r) => (onBasis ? r.basisDollars : r.spread)))]
+      .filter((v) => typeof v === "number");
     console.log(`${b.bids.length} rows, priced ${b.pricedAt}, read ${b.ageH.toFixed(1)}h ago, ` +
-                `spread ${used.map((v) => v.toFixed(2)).join(" / ")} under`);
+                (used.length
+                  ? (onBasis ? `basis ${used.map((v) => v.toFixed(2)).join(" / ")} against the contract`
+                             : `spread ${used.map((v) => v.toFixed(2)).join(" / ")} under`)
+                  : "no basis or spread recorded on the rows"));
     if (b.sourceStale)
       console.warn("  NOTE: the reader reports their board has not moved in a long time. " +
                    "That is not our failure and the price is still theirs, but the " +
@@ -801,6 +913,19 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
     if (!TNOTE.test(html))
       throw new Error("could not find the small print under the price table in index.html");
     html = html.replace(TNOTE, (_m, a, t) => a + esc(site.price_note) + t);
+  }
+
+  /* WHEN THIS PAGE WAS LAST BUILT, for the staleness check at the foot of it.
+     Written only when there is a board to date; a withdrawn page already says
+     "Call for today's price" and needs no second opinion. Absent markers leave
+     the page alone, so an older index.html is never broken by a newer tool. */
+  const PRICE_META = /(<!-- PRICE:meta -->)[\s\S]*?(<!-- \/PRICE:meta -->)/;
+  if (PRICE_META.test(html)) {
+    const meta = b && b.checkedAt
+      ? `\n<script type="application/json" id="price-meta">${
+          JSON.stringify({ builtFrom: b.checkedAt }).replace(/</g, "\\u003c")}</script>\n`
+      : "\n";
+    html = html.replace(PRICE_META, (_m, a, z) => a + meta + z);
   }
 
   const changed = [];

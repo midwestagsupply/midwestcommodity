@@ -47,9 +47,21 @@ let html = readFileSync(idx, "utf8");
    without the page meaning anything different: the "as of" line the
    price publisher writes, and the today's-hours box the daily job
    rewrites every morning. A new PRICE is a real change and stays in. */
+/* BOTH OF THESE MATCHED NOTHING, AND THE FILE IS THE ONLY PLACE THAT SAID SO.
+   The page emits `<span class="as">`, never `as num` -- that class pair has
+   never existed -- and `<div class="today is-shut">`, not a bare `today`. So
+   neither volatile part was ever stripped, and every timestamp move changed
+   the hash. Measured on three copies differing only in one volatile field:
+   the shipped strip produced a different hash for each; with the class-list
+   forms below, all three hash the same and a real price change still moves it.
+
+   The second regex is the same blind spot update-today.mjs found in its own
+   copy on 2026-08-20 and fixed there -- see BOX_BLOCK and the note above it,
+   which cost both sites 17 hours stuck on "Closed for the day". The fix
+   landed in one of the two files that needed it. */
 const stable = html
-  .replace(/<span class="as num">[\s\S]*?<\/span>/g, "")
-  .replace(/<div class="today">[\s\S]*?<\/div>\s*<div class="hrow">/g, '<div class="hrow">')
+  .replace(/<span class="as(?:\s[^"]*)?">[\s\S]*?<\/span>/g, "")
+  .replace(/<div class="today(?:\s[^"]*)?">[\s\S]*?<\/div>\s*<div class="hrow">/g, '<div class="hrow">')
   // All whitespace goes, not just runs of it. Removing a span leaves
   // the space that sat in front of it, and that space is not a change.
   // Nothing on this page means anything different for having been

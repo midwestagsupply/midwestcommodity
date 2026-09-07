@@ -6,10 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   board,
   payFrom,
+  payFromBasis,
   basisText,
   money,
   asOf,
@@ -819,7 +822,20 @@ test("futures is hidden on a phone, with the basis", () => {
   const html = renderPriced(b);
   assert.equal((html.match(/class="fut r m-hide"/g) || []).length,
                (html.match(/class="bas r m-hide"/g) || []).length);
-  assert.match(html, /<th class="r m-hide">Futures<\/th>/);
+  /* AMENDED 2026-09-06. This asserted the byte string
+     `<th class="r m-hide">Futures</th>`, which is a proxy for the thing the
+     test is named after and breaks on any attribute added to that cell. The
+     cell now also carries scope="col" -- both drying tables on the same page
+     have had scope and a caption from the start, and the price table, the one
+     table anybody would actually use a screen reader on, had neither. So the
+     check asserts what it is about: the header is there, and it is hidden on a
+     phone. The scope attribute gets its own assertion rather than riding along
+     inside a string, so a future edit that drops it fails for its own reason. */
+  assert.match(html, /<th[^>]*class="r m-hide"[^>]*>Futures<\/th>/);
+  assert.match(html, /<th scope="col"[^>]*>Futures<\/th>/,
+    "the price table's headers are what a screen reader reads the row against");
+  assert.match(html, /<caption class="sr-only">Cash corn bids by delivery month<\/caption>/,
+    "and the table says what it is before it starts reading numbers");
 });
 
 test("A HAND-POSTED ROW SHOWS A DASH, BECAUSE THERE IS NO QUOTE BEHIND IT", () => {
@@ -1193,4 +1209,150 @@ test("and when the directory IS readable the page says when we looked", async ()
     assert.match(out, /as of Thursday, August 20, 4:49pm/, "the header must show when we looked");
     assert.doesNotMatch(out, /1:40pm/);
   } finally { process.chdir(cwd); }
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   OUR OWN BASIS, AGAINST THE CONTRACT MONTH
+   ══════════════════════════════════════════════════════════════════════════
+   Added 2026-09-06 with the change from a spread to a basis. Everything below
+   drives board() with a `basis` and asserts on what a grower would be handed.
+   The suite passed the whole arithmetic change without one of these, because
+   the spread path is untouched and nothing exercised the new one.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+test("what we pay is the contract quote plus our basis, to the cent, on every row", () => {
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: -0.75, harvest: -0.62 } });
+  assert.ok(b.bids.length > 1);
+  for (const r of b.bids) {
+    assert.equal(typeof r.futures, "number",
+      `${r.delivery} published without a contract quote to add the basis to`);
+    const want = Math.round((r.futures + r.basisDollars) * 100) / 100;
+    assert.equal(r.pay, want,
+      `${r.delivery}: ${r.futures} + ${r.basisDollars} should pay ${want}, got ${r.pay}`);
+  }
+});
+
+test("the basis we post IS the basis we set, not one worked back from their board", () => {
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: -0.70, harvest: -0.55 } });
+  for (const r of b.bids)
+    assert.equal(r.basisDollars, HARVEST_MONTHS.includes(r.delivery) ? -0.55 : -0.70,
+      `${r.delivery} printed a basis nobody typed`);
+});
+
+test("SETTING OUR BASIS TO THEIRS REPRODUCES THEIR BOARD", () => {
+  /* The check that the new arithmetic can express the old state. If this
+     drifts, the two paths have stopped meaning the same thing and one of them
+     is wrong about what a grower is paid. */
+  const spot = LIVE.bids[0];
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: spot.basisDollars, harvest: null } });
+  const mine = b.bids.find((r) => r.delivery === spot.delivery);
+  const theirs = Math.sign(spot.cash) * Math.round(Math.abs(spot.cash) * 100) / 100;
+  assert.equal(mine.pay, theirs,
+    "futures + their own basis did not come back to their own cash price");
+});
+
+test("a row with no contract quote publishes nothing rather than a number from somewhere else", () => {
+  /* On the spread path such a row is merely uncheckable and still publishable,
+     because the price came off their cash. Here the quote IS the price. */
+  const feed = clone(LIVE);
+  delete feed.bids[0].futuresPriceCents;
+  assert.throws(
+    () => board(feed, { now: NOW, spreads: { cash: 0, harvest: null },
+                        basis: { cash: -0.75, harvest: null } }),
+    /no futures quote/);
+});
+
+test("A BASIS FURTHER THAN $1.50 FROM ZERO IS A TYPO AND IS REFUSED", () => {
+  /* -1.90 on a 5.3675 contract posts $3.47 -- inside the 2.00-12.00 range
+     guard, and a dollar fifteen under the board. The range guard alone let it
+     through; measured, before this check existed. */
+  for (const bad of [-1.9, 1.9, 9]) {
+    assert.throws(
+      () => board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: bad, harvest: null } }),
+      /further than 1.5 from zero|outside 2-12/,
+      `a ${bad} basis was published`);
+  }
+});
+
+test("the new-crop basis applies to October and November and nothing else", () => {
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: -0.75, harvest: -0.40 } });
+  for (const r of b.bids)
+    assert.equal(r.basisDollars, HARVEST_MONTHS.includes(r.delivery) ? -0.40 : -0.75);
+});
+
+test("an absent new-crop basis means the same as the cash basis", () => {
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0, harvest: null },
+                          basis: { cash: -0.66, harvest: null } });
+  for (const r of b.bids) assert.equal(r.basisDollars, -0.66);
+});
+
+test("NO BASIS IN pricing.json LEAVES THE SPREAD PATH EXACTLY AS IT WAS", () => {
+  /* This is what makes the upload order unable to matter: the staff console
+     lives in a third repository, and these files can land before anybody has
+     set a basis. */
+  const was = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: 0.03 } });
+  const now_ = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: 0.03 }, basis: null });
+  assert.deepEqual(now_.bids.map((r) => [r.delivery, r.pay, r.basisDollars]),
+                   was.bids.map((r) => [r.delivery, r.pay, r.basisDollars]));
+  assert.equal(was.bids[0].pay, payFrom(LIVE.bids[0].cash, 0.10));
+});
+
+test("a basis of zero is even with the contract, and is not read as absent", () => {
+  const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null },
+                          basis: { cash: 0, harvest: null } });
+  const r = b.bids[0];
+  assert.equal(r.basisDollars, 0);
+  assert.equal(r.pay, Math.sign(r.futures) * Math.round(Math.abs(r.futures) * 100) / 100,
+    "a zero basis should pay the contract quote, not fall through to the spread");
+});
+
+
+test("THE PUBLISH PATH RUNS WITH A BASIS, not only board() in isolation", async () => {
+  /* AF1 threw a TypeError out of main() on the first basis save and the suite
+     stayed green, because every main() test writes a spread-only pricing.json
+     and every basis test drives board() directly. The gap between the two was
+     the whole publish path. This closes it. */
+  const dir = mkdtempSync(join(tmpdir(), "basis-main-"));
+  const cwd = process.cwd();
+  try {
+    cpSync(join(cwd, "index.html"), join(dir, "index.html"));
+    writeFileSync(join(dir, "pricing.json"), JSON.stringify({
+      spread: 0, basis: -0.75, basisHarvest: -0.62,
+      company: "Test", location: "Test", city: "Test", state: "WI",
+      contact: "x@example.com", price_note: null, manual: null,
+    }));
+    process.chdir(dir);
+    const feed = { ...LIVE, checkedAt: new Date().toISOString(),
+                   pricedAt: new Date().toISOString() };
+    /* main is not among the module's named test imports at the top of this
+       file, and importing it there would pull a filesystem-touching entry
+       point into every pure test. Imported here, where it is used. */
+    const { main } = await import("../tools/update-prices.mjs");
+    const res = await main({
+      fetchImpl: async () => ({ ok: true, json: async () => feed,
+                                text: async () => JSON.stringify(feed) }),
+      now: new Date(),
+    });
+    void res;
+    const html = readFileSync(join(dir, "index.html"), "utf8");
+    /* THE EXPECTATION USES THE CODE'S OWN ROUNDING RULE, not a second one.
+       The first version wrote (futures - 0.75).toFixed(2). 463.5c less 75c is
+       3.885, which the rule in this file rounds away from zero to $3.89 and
+       toFixed rounds to $3.88 -- so the test failed against correct output.
+       That is exactly the hazard payFrom's comment describes: a rounding rule
+       with two implementations. Computed from the fixture, through the one
+       implementation, so it cannot drift into agreeing with a wrong answer. */
+    const spot = LIVE.bids[0];
+    const want = payFromBasis(spot.futuresPriceCents / 100, -0.75).toFixed(2);
+    assert.match(html, new RegExp("\\$" + want.replace(".", "\\.")),
+      `the published page does not carry $${want}. This is the path that threw.`);
+  } finally {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -23,6 +23,14 @@ will fake one and the mark will look smeared.
 
 ## Body text
 
-Body text is Inter, loaded from Google Fonts with a system font fallback. If
-you would rather not depend on Google, download Inter (SIL Open Font Licence)
-and self host it exactly the way this folder does.
+Body text is Inter, self hosted from this folder at weights 500, 600, 700 and
+800 (SIL Open Font Licence). Nothing on either page loads a typeface, a script
+or a stylesheet from anybody else's server; a visitor behind a filter that
+blocks Google gets the same page as everybody else.
+
+This paragraph used to say the opposite -- that Inter came from Google Fonts
+and could be self hosted "if you would rather not depend on Google". It was
+already self hosted when that was written. The guard in test/typefaces.test.mjs
+greps index.html, 404.html and site.css for fonts.googleapis, so it never saw
+this file, and a maintainer acting on the old sentence would have added the
+dependency the site had deliberately gone without.
