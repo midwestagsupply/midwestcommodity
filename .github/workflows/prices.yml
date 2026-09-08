@@ -186,7 +186,16 @@ jobs:
         run: |
           git config user.name  "prices"
           git config user.email "actions@github.com"
-          git add index.html bids.json bids.csv hours.json sitemap.xml
+          # price-history.json IS WRITTEN ON EVERY RUN AND WAS NEVER NAMED HERE.
+          # tools/update-prices.mjs wrote it into the runner's working tree, this
+          # line did not stage it, and the runner was then destroyed. The copy in
+          # the repository sat at the hand-made backfill of 2026-08-31 while the
+          # page's change line went on reading it -- so on 8 September the board
+          # said "down 11c from Monday" and meant Monday 31 August. Nothing was
+          # red; the run was green and the prices were right.
+          # test/staged.test.mjs now fails if this list and the updater's writes
+          # ever disagree again, which is the actual rule.
+          git add index.html bids.json bids.csv hours.json sitemap.xml price-history.json
           if git diff --staged --quiet; then
             echo "nothing changed"
           else
