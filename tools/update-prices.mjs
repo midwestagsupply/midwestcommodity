@@ -139,8 +139,30 @@ export function payFromBasis(futures, basis) {
    spreadFor, deliberately -- old crop and new crop are the decision the
    office actually makes, and the screen has two boxes because of it. */
 export function basisFor(delivery, basis) {
+  /* A MONTH'S OWN BASIS WINS, and only a number counts as one.
+     `months` is the per-month table the staff screen writes. A month that is
+     listed but carries no basis -- ticked to publish and nothing typed -- falls
+     through to the bucket below rather than pricing at zero, which would be a
+     dollar-and-a-half swing from a blank box. */
+  const own = basis.months?.[delivery]?.basis;
+  if (typeof own === "number" && Number.isFinite(own)) return own;
   const harvest = basis.harvest;
   return HARVEST_MONTHS.includes(delivery) && harvest != null ? harvest : basis.cash;
+}
+
+/* WHICH MONTHS THE PAGE SHOWS.
+ *
+ * With no `months` table this returns null and renderPriced keeps its old
+ * two-row behaviour, which is the whole compatibility contract in one line.
+ *
+ * With one, the page shows the ticked months IN BOARD ORDER -- their order, not
+ * ours, and not the order the office happened to tick them in. A month that is
+ * ticked but is not on their board today simply is not there to show; that is
+ * their board shrinking through the season, not an error.
+ */
+export function publishedRows(bids, months) {
+  if (!months || typeof months !== "object") return null;
+  return bids.filter((r) => months[r.delivery]?.publish === true);
 }
 
 /* A basis this far from zero is a typo, not a market. Same figure the applier
@@ -160,6 +182,40 @@ export const BASIS_ABS_MAX = 1.5;
 export function spreadFor(delivery, spreads) {
   const harvest = spreads.harvest;
   return HARVEST_MONTHS.includes(delivery) && harvest != null ? harvest : spreads.cash;
+}
+
+/* THE PER-MONTH TABLE, CHECKED BEFORE IT IS TRUSTED.
+ *
+ * Every figure in here was typed by a person on the staff screen and travelled
+ * through a GitHub issue, so it is checked here as well as there. The same cap
+ * the applier and the screen use, deliberately: three numbers that have to
+ * agree are one number written three times.
+ *
+ * Absent, null, or an empty object all mean the same thing -- no per-month
+ * table -- and the page keeps its old two rows.
+ */
+export function monthTable(site) {
+  const m = site.months;
+  if (m == null) return null;
+  if (typeof m !== "object" || Array.isArray(m))
+    throw new Error(`pricing.json months must be an object of months, got ${JSON.stringify(m)}`);
+  const out = {};
+  for (const [month, v] of Object.entries(m)) {
+    if (v == null) continue;
+    if (typeof v !== "object" || Array.isArray(v))
+      throw new Error(`pricing.json months.${month} must be an object, got ${JSON.stringify(v)}`);
+    const b = v.basis;
+    if (b != null) {
+      if (typeof b !== "number" || !Number.isFinite(b))
+        throw new Error(`pricing.json months.${month}.basis must be a number, got ${JSON.stringify(b)}`);
+      if (Math.abs(b) > BASIS_ABS_MAX)
+        throw new Error(
+          `pricing.json months.${month}.basis is ${b}, further than ${BASIS_ABS_MAX} from zero. ` +
+          `Signed: -0.75 is seventy-five under, +0.05 is a nickel over.`);
+    }
+    out[month] = { basis: b ?? null, publish: v.publish === true };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 export const HISTORY_PATH = "price-history.json";
@@ -325,8 +381,34 @@ export function board(feed, { now, spreads, basis = null, maxAgeH = FEED_MAX_AGE
      month names -- sorting those alphabetically puts April first. */
   out.sort((a, b) => a.seq - b.seq);
 
+  /* NOTHING TICKED IS NOT AN EMPTY PRICE TABLE. A table with no rows under the
+     heading "Prices paid today" reads as a site that has stopped working. If
+     the office has ticked nothing -- or has ticked only months their board no
+     longer carries -- the page says "Call for today's price", which is true,
+     and the run says which it was. The staff screen refuses to save an empty
+     set as well; this is the second of the two guards, not the only one. */
+  if (basis?.months) {
+    /* THROUGH publishedRows, NOT A SECOND COPY OF THE PREDICATE. This filter was
+       written out longhand here first. Loosening it to `?.publish` (truthy)
+       left the whole suite green -- the renderer still filtered strictly, so
+       the page did not move and only this guard disagreed with it. Two copies
+       of "is this month ticked" is exactly how the page and the guard come to
+       answer differently. One implementation, used twice. */
+    const shown = publishedRows(out, basis.months);
+    if (!shown.length) {
+      const ticked = Object.keys(basis.months).filter((m) => basis.months[m]?.publish === true);
+      throw new Withdraw(ticked.length
+        ? `the months ticked to publish (${ticked.join(", ")}) are not on their board today, ` +
+          `so there is nothing to show`
+        : `no delivery months are ticked to publish on the staff screen`);
+    }
+  }
+
   return {
     bids: out,
+    /* Carried, not recomputed. renderPriced needs to know which months were
+       ticked and board() is the only thing holding the basis table. */
+    months: basis?.months ?? null,
     pricedAt: typeof feed.pricedAt === "string" ? feed.pricedAt : feed.checkedAt,
     checkedAt: feed.checkedAt,
     sourceStale: feed.status === "stale",
@@ -521,9 +603,16 @@ export function renderPriced(b, history = HISTORY_EMPTY, when = new Date()) {
      "Harvest" are captions; Corn/August and Corn/October are the contracts. */
   const chg = (r) => change(history, r, r.pay, when);
 
-  const rows = [line("Cash, corn", `${spot.delivery} delivery`, spot, chg(spot))];
-  if (harvest)
-    rows.push(line("Harvest", window.join(" and ") + " delivery", harvest, chg(harvest)));
+  /* THE TICKED MONTHS, OR THE OLD TWO. Nothing in between: a `months` table
+     that exists but ticks nothing has already been refused in board(), so the
+     list here is never empty when it is used at all. */
+  const picked = publishedRows(b.bids, b.months);
+  const rows = picked
+    ? picked.map((r) => line(r.delivery, "", r, chg(r)))
+    : [line("Cash, corn", `${spot.delivery} delivery`, spot, chg(spot)),
+       ...(harvest
+         ? [line("Harvest", window.join(" and ") + " delivery", harvest, chg(harvest))]
+         : [])];
 
   /* "AS OF" IS WHEN WE LOOKED, NOT WHEN THEIR BOARD MOVED.
    *
@@ -754,6 +843,16 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
      files are uploaded in unable to matter. */
   /* ourBasis is declared at the top of main() now, so the spread checks can
      stand down once a basis is set. */
+  /* `months` IS ONLY MEANINGFUL ON THE BASIS PATH. The spread path prices off
+     Big River's own cash and has no per-month number to carry; a months table
+     sitting beside a spread would look like it was doing something and would
+     not be. Refused loudly rather than ignored quietly. */
+  if (site.months != null && ourBasis == null)
+    throw new Error(
+      "pricing.json has a `months` table and no `basis`. Per-month publishing prices " +
+      "off the contract month, so it needs a basis to add to it. Set \"basis\", or " +
+      "remove \"months\".");
+
   let basis = null;
   if (ourBasis == null && site.basisHarvest != null)
     throw new Error(
@@ -772,7 +871,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
       throw new Error(
         `pricing.json basisHarvest must be a number within ${BASIS_ABS_MAX} of zero, ` +
         `or absent to mean the same as the cash basis. Got ${JSON.stringify(oh)}.`);
-    basis = { cash: ourBasis, harvest: oh ?? null };
+    basis = { cash: ourBasis, harvest: oh ?? null, months: monthTable(site) };
   }
 
   let b = null, why = null;
