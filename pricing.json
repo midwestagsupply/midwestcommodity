@@ -12,8 +12,54 @@
   "contact": "accounting@midwestagsupply.com",
   "price_note": "Prices change with the market and are not final until you call. Grain is bought subject to the drying and discount schedule below.",
   "manual": null,
-  "updated_at": "2026-09-08T17:38:49.726Z",
+  "updated_at": "2026-09-09T14:40:50.626Z",
   "updated_by": "midwestagsupply",
   "basis": -0.85,
-  "basisHarvest": -0.72
+  "basisHarvest": -0.72,
+  "months": {
+    "September": {
+      "basis": -0.65,
+      "publish": true
+    },
+    "October": {
+      "basis": -0.72,
+      "publish": true
+    },
+    "November": {
+      "basis": -0.55,
+      "publish": false
+    },
+    "December": {
+      "basis": -0.5,
+      "publish": false
+    },
+    "January": {
+      "basis": -0.6,
+      "publish": false
+    },
+    "February": {
+      "basis": -0.58,
+      "publish": false
+    },
+    "March": {
+      "basis": -0.5,
+      "publish": false
+    },
+    "April": {
+      "basis": -0.54,
+      "publish": false
+    },
+    "May": {
+      "basis": -0.52,
+      "publish": false
+    },
+    "June": {
+      "basis": -0.52,
+      "publish": false
+    },
+    "July": {
+      "basis": -0.52,
+      "publish": false
+    }
+  }
 }
