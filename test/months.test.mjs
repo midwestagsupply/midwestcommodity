@@ -321,25 +321,79 @@ test("THE PUBLISH PATH RUNS WITH A MONTHS TABLE, not only board() in isolation",
   }
 });
 
-test("a months table with no basis beside it is refused by name", async () => {
-  /* Per-month publishing prices off the contract month. A months table sitting
-     beside a spread would look like it was doing something and would not be. */
+/* ══════════════════════════════════════════════════════════════════════════
+   A MONTHS TABLE WITH NO SITE-WIDE BASIS
+   ══════════════════════════════════════════════════════════════════════════
+   THIS IS THE SHAPE THE STAFF SCREEN ACTUALLY WRITES, and it took badgergrain
+   dark for ten hours on 2026-09-09. The fallback basis was removed from the
+   screen on 09-08 -- Sig: "why do we need fallback basis at all" -- so the
+   applier has written `months` and no `basis` ever since. The guard here
+   refused exactly that combination, because it was written when `months` was
+   an addition to the single-basis model and "no top-level basis" still meant
+   "on the old spread path".
+
+   Three cases, because the distinction is the whole point: a table that CAN
+   price publishes, a ticked month that CANNOT is refused by name, and an
+   unticked one that cannot is simply not on the board.
+   ══════════════════════════════════════════════════════════════════════════ */
+const withPricing = async (pricing, fn) => {
   const dir = mkdtempSync(join(tmpdir(), "months-nobasis-"));
   const cwd = process.cwd();
   try {
     cpSync(join(cwd, "index.html"), join(dir, "index.html"));
-    writeFileSync(join(dir, "pricing.json"), JSON.stringify({
-      spread: 0.10, months: { September: { publish: true } }, contact: "x@example.com",
-    }));
+    writeFileSync(join(dir, "pricing.json"),
+                  JSON.stringify({ contact: "x@example.com", ...pricing }));
     process.chdir(dir);
     const { main } = await import("../tools/update-prices.mjs");
-    await assert.rejects(
-      main({ fetchImpl: async () => ({ ok: true, json: async () => LIVE,
-                                       text: async () => JSON.stringify(LIVE) }),
-             now: NOW }),
-      /has a `months` table and no `basis`/);
+    return await fn(main, dir);
   } finally {
     process.chdir(cwd);
     rmSync(dir, { recursive: true, force: true });
   }
+};
+const feedArg = { fetchImpl: async () => ({ ok: true, json: async () => LIVE,
+                                            text: async () => JSON.stringify(LIVE) }),
+                  now: NOW };
+
+test("A MONTHS TABLE THAT CAN PRICE NEEDS NO SITE-WIDE BASIS", async () => {
+  /* badgergrain's own file, 2026-09-09: every month carries its own figure and
+     there is no `basis` anywhere. This threw on every run for ten hours. */
+  const months = {};
+  for (const [m, b] of [["August", -0.52], ["September", -0.46], ["October", -0.55],
+                        ["November", -0.57], ["December", -0.50], ["January", -0.60]])
+    months[m] = { basis: b, publish: m === "September" || m === "October" };
+  await withPricing({ spread: 0, months }, async (main, dir) => {
+    await main(feedArg);
+    const bids = JSON.parse(readFileSync(join(dir, "bids.json"), "utf8"));
+    assert.ok(bids.bids.length, "a months table that can price published nothing");
+  });
+});
+
+test("a TICKED month with no basis anywhere is refused, by name", async () => {
+  /* The fault the old guard was really for, and it still stops the run -- but
+     now it names the month the office has to fix rather than the file. */
+  await withPricing(
+    { spread: 0, months: { September: { publish: true }, October: { basis: -0.6, publish: true } } },
+    async (main) => {
+      await assert.rejects(main(feedArg), (e) => {
+        assert.match(e.message, /September/, "the refusal does not name the month at fault");
+        assert.doesNotMatch(e.message, /^October/, "it named a month that is fine");
+        assert.match(e.message, /untick|Type a basis/, "it does not say what to do about it");
+        return true;
+      });
+    });
+});
+
+test("an UNTICKED month with no basis does not take the site down", async () => {
+  /* A month nobody is publishing, with a blank box, is not a reason to withdraw
+     every price on the page. It is simply not on the board. */
+  const months = { September: { basis: -0.46, publish: true },
+                   December: { publish: false } };
+  await withPricing({ spread: 0, months }, async (main, dir) => {
+    await main(feedArg);
+    const bids = JSON.parse(readFileSync(join(dir, "bids.json"), "utf8"));
+    assert.ok(bids.bids.length, "an unticked blank month withdrew the whole board");
+    assert.ok(!bids.bids.some((b) => b.delivery === "December"),
+              "a month with no basis was priced anyway");
+  });
 });

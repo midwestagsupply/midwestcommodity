@@ -312,6 +312,20 @@ export function board(feed, { now, spreads, basis = null, maxAgeH = FEED_MAX_AGE
     const spread = basis ? null : spreadFor(b.delivery, spreads);
     const ours = basis ? basisFor(b.delivery, basis) : basisFrom(b.basisDollars, spread);
 
+    /* NO BASIS, NO PRICE. With no site-wide figure basisFor() returns null for
+       a month carrying none, and `futures + null` is `futures` -- a price a
+       dollar and a half over the board, published as though somebody had asked
+       for it. A TICKED month here is a fault the office has to see; an unticked
+       one is simply not on the board, and is dropped rather than taking the
+       whole site down over a month nobody is publishing. */
+    if (basis && !(typeof ours === "number" && Number.isFinite(ours))) {
+      if (basis.months?.[b.delivery]?.publish === true)
+        throw new Withdraw(
+          `${b.delivery} is set to publish and has no basis, here or site-wide, ` +
+          `so there is nothing to add to the contract price.`);
+      continue;
+    }
+
     /* NO CONTRACT QUOTE, NO PRICE -- in this mode only. On the spread path a
        row without futures was merely uncheckable and still publishable,
        because the price came off their cash. Here the futures quote IS the
@@ -843,15 +857,25 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
      files are uploaded in unable to matter. */
   /* ourBasis is declared at the top of main() now, so the spread checks can
      stand down once a basis is set. */
-  /* `months` IS ONLY MEANINGFUL ON THE BASIS PATH. The spread path prices off
-     Big River's own cash and has no per-month number to carry; a months table
-     sitting beside a spread would look like it was doing something and would
-     not be. Refused loudly rather than ignored quietly. */
-  if (site.months != null && ourBasis == null)
-    throw new Error(
-      "pricing.json has a `months` table and no `basis`. Per-month publishing prices " +
-      "off the contract month, so it needs a basis to add to it. Set \"basis\", or " +
-      "remove \"months\".");
+  /* A MONTHS TABLE IS THE BASIS PATH IN ITS OWN RIGHT. Every month it lists
+     carries its own figure, so a site-wide basis is a fallback for the months
+     that do not -- not a licence for the table to exist at all. Requiring one
+     took the first migrated site dark for ten hours; see the note at the top of
+     build/patch_months_nobasis.py. Refused only when a month the office has
+     TICKED has no basis anywhere, which is the fault worth stopping for. */
+  if (site.months != null && ourBasis == null) {
+    const t0 = monthTable(site) || {};
+    const orphan = Object.keys(t0).filter(
+      (m) => t0[m] && t0[m].publish === true &&
+             !(typeof t0[m].basis === "number" && Number.isFinite(t0[m].basis)));
+    if (orphan.length)
+      throw new Error(
+        `pricing.json sets ${orphan.join(", ")} to publish with no basis of ` +
+        `${orphan.length === 1 ? "its" : "their"} own, and the file carries no ` +
+        `site-wide "basis" to fall back to. Type a basis for ` +
+        `${orphan.length === 1 ? "that month" : "those months"}, untick ` +
+        `${orphan.length === 1 ? "it" : "them"}, or set "basis".`);
+  }
 
   let basis = null;
   if (ourBasis == null && site.basisHarvest != null)
@@ -872,6 +896,12 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
         `pricing.json basisHarvest must be a number within ${BASIS_ABS_MAX} of zero, ` +
         `or absent to mean the same as the cash basis. Got ${JSON.stringify(oh)}.`);
     basis = { cash: ourBasis, harvest: oh ?? null, months: monthTable(site) };
+  } else if (site.months != null) {
+    /* No site-wide figure, and by the guard above every PUBLISHED month has one
+       of its own. `cash: null` is the honest value for the fallback, because
+       there is no fallback: basisFor() returns it for a month carrying none,
+       and the row guard in board() refuses to price on it. */
+    basis = { cash: null, harvest: null, months: monthTable(site) };
   }
 
   let b = null, why = null;
