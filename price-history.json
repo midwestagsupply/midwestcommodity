@@ -1,6 +1,6 @@
 {
  "schema": "emmert-price-history/1",
- "updated": "2026-09-11T18:31:40.305Z",
+ "updated": "2026-09-11T18:33:58.407Z",
  "days": {
   "2026-08-17": {},
   "2026-08-18": {
@@ -234,17 +234,17 @@
    "Corn|July": 5.08
   },
   "2026-09-11": {
-   "Corn|September": 4.61,
-   "Corn|October": 4.55,
-   "Corn|November": 4.72,
-   "Corn|December": 4.76,
-   "Corn|January": 4.82,
-   "Corn|February": 4.84,
-   "Corn|March": 4.92,
-   "Corn|April": 4.96,
-   "Corn|May": 4.97,
-   "Corn|June": 5.01,
-   "Corn|July": 5.01
+   "Corn|September": 4.65,
+   "Corn|October": 4.58,
+   "Corn|November": 4.75,
+   "Corn|December": 4.8,
+   "Corn|January": 4.86,
+   "Corn|February": 4.88,
+   "Corn|March": 4.96,
+   "Corn|April": 4.99,
+   "Corn|May": 5.01,
+   "Corn|June": 5.04,
+   "Corn|July": 5.04
   }
  },
  "note": "Backfilled from this repository's own commit history of bids.json on 2026-08-31, and again on 2026-09-08 after the sessions of 1-8 September were found missing: tools/update-prices.mjs wrote this file on every run and the workflow's `git add` did not name it, so nothing was ever committed. Keys are EXCHANGE TRADE DATES, which roll at 19:00 Central, not calendar days; weekends hold no session. A snapshot is only filed when the board's own pricedAt falls inside the same trade date, so a frozen board contributes nothing. Every value is the last cash price posted in that session, read from the file as it was committed. Nothing estimated."
