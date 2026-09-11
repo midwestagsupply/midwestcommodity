@@ -19,7 +19,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, cpSync, rmSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -73,10 +73,30 @@ test("AN UNTOUCHED REPOSITORY PASSES", () => {
 });
 
 test("and it names the workflow that actually rebuilds the box, with its schedules", () => {
+  /* THIS USED TO ASSERT THE WORD "3".
+     It went red the day prices.yml went from three windows to one schedule --
+     a change that made the box MORE current, not less. A test that fails when
+     the thing under test gets better is pinning the shape of today's file, not
+     the behaviour, and the cost is that the next person reads a red suite as
+     "the edit was wrong" instead of "the assertion was".
+     What the checker actually owes a reader: name the workflow, count the
+     crons that are really in it, agree with itself about singular and plural,
+     and print each one so a stale schedule is visible without opening the
+     file. All four are derived from the file here, so this survives the next
+     schedule change and still fails if the line stops being true. */
   const d = scratch();
+  const yml = readFileSync(join(d, ".github", "workflows", "prices.yml"), "utf8");
+  const crons = [...yml.matchAll(/cron:\s*["']([^"']+)["']/g)].map((m) => m[1]);
   const r = run(d);
   rmSync(d, { recursive: true, force: true });
-  assert.match(r.out, /prices\.yml — rebuilds the "Open today" box on 3 schedules/);
+
+  assert.ok(crons.length, "the fixture repository has no schedule to report");
+  const plural = crons.length === 1 ? "schedule" : "schedules";
+  assert.match(r.out, new RegExp(
+    'prices\\.yml — rebuilds the "Open today" box on ' + crons.length + " " + plural),
+    `the checker did not report ${crons.length} ${plural}. Output:\n${r.out}`);
+  for (const c of crons)
+    assert.ok(r.out.includes(c), `the checker did not print the schedule ${c}`);
 });
 
 test("NO WORKFLOWS AT ALL IS STILL A PROBLEM", () => {

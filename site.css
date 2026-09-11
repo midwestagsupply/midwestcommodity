@@ -802,8 +802,14 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
    the number pushes the column out by a hair instead of clipping the glyph. A
    ragged column is a blemish; a clipped ¾ is a wrong price.
 
-   Below 601px the whole futures column is display:none via .m-hide, so none of
-   this applies on a phone. */
+   THIS COMMENT USED TO SAY the column is display:none below 601px, so none of
+   this applies on a phone. That stopped being true when Sig asked for the
+   futures price on phones: the 680px block above turns .m-hide back on, and
+   the column now renders down to 320px. The rule itself was already right --
+   min-width is in em, so it tracks the three type steps down instead of
+   holding a desktop width against phone type -- and the quarter renders clean
+   at 390 on both sites. Only the note about where it applies was wrong, which
+   is the kind of wrong that survives because nothing renders a comment. */
 .bids td.fut .q{
   display:inline-block;
   min-width:.86em;

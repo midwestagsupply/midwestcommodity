@@ -233,7 +233,7 @@ const PAGE = `<div class="wrap">
         <p class="nobid-p">We are posting prices here shortly. Ring the office and we will give you today's number.</p>
       </div>
 
-      <div class="tnote">Prices change with the market and are not final until you call. Grain is bought subject to the drying and discount schedule below.</div>
+      <div class="tnote">Corn futures are delayed at least 10 min. Pricing is provided for informational purposes only.</div>
       </div>
       <a class="call num" href="tel:+17157040548">Call (715) 704-0548 to lock a price</a>
     </div>
@@ -243,7 +243,7 @@ test("only the panel is rewritten; the call button and the terms line survive", 
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const out = writeRegion(PAGE, renderPriced(b));
   assert.match(out, /tel:\+17157040548/);
-  assert.match(out, /Prices change with the market/);
+  assert.match(out, /Corn futures are delayed at least 10 min/);
   assert.match(out, /<table class="bids">/);
   assert.doesNotMatch(out, /nobid/, "the withdrawal panel must be gone");
   assert.equal((out.match(/<div class="tnote">/g) || []).length, 1);
@@ -600,7 +600,7 @@ test("THE PRICE NOTE IS A LIVE BOX, NOT A BOX THAT SWALLOWS WHAT YOU TYPE", () =
   assert.match(PAGE, TNOTE, "the fixture has the box this replaces");
   const out = PAGE.replace(TNOTE, (_m, a, b) => a + "Call before you haul." + b);
   assert.match(out, /<div class="tnote">Call before you haul\.<\/div>/);
-  assert.doesNotMatch(out, /drying and discount schedule/);
+  assert.doesNotMatch(out, /informational purposes only/);
 });
 
 test("...and leaving it unset leaves the page's own wording alone", () => {
@@ -1355,4 +1355,53 @@ test("THE PUBLISH PATH RUNS WITH A BASIS, not only board() in isolation", async 
     process.chdir(cwd);
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/* ---- the small print has two copies, and they must not drift ------------ */
+
+test("THE SHIPPED PAGE'S SMALL PRINT IS THE ONE pricing.json HOLDS", () => {
+  /* price_note lives in pricing.json and is spliced into index.html by the
+     price job. Between a hand edit and the next run the page carries whatever
+     was typed into it, so index.html is a real second copy a reader can see,
+     not a cache. Changing one and not the other is the failure this catches:
+     the page shows the old sentence until a price moves, and nothing else in
+     the suite notices. Read from the shipped files, not from a fixture --
+     a fixture would only prove the fixture agrees with itself. */
+  const note = JSON.parse(
+    readFileSync(new URL("../pricing.json", import.meta.url), "utf8")).price_note;
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.equal(typeof note, "string");
+  assert.ok(note.trim(), "pricing.json carries no price_note to render");
+
+  const m = html.match(/<div class="tnote">([\s\S]*?)<\/div>/);
+  assert.ok(m, "index.html has no small print box under the price table");
+  assert.equal(m[1], note,
+    "index.html and pricing.json disagree about the small print. " +
+    "The page says " + JSON.stringify(m[1]) + "; pricing.json says " +
+    JSON.stringify(note) + ".");
+});
+
+test("...and the small print obeys the house rules for reader-facing copy", () => {
+  /* This sentence is edited from a staff screen and goes live without anyone
+     reading the diff, so the rules the rest of the page is held to are checked
+     here instead of trusted.
+
+     THE UNIT WORD RULE IS THE PANEL'S, NOT THE PAGE'S. An earlier version of
+     this test said "the word bushel does not appear on these sites", which the
+     page disproves five times over: the storage rate, the forward contract
+     minimum and the drying schedules all need the unit to say anything at all.
+     The rule that exists is the one the panel test above enforces -- no unit
+     word inside the price panel, where the figure stands alone as "We pay
+     $4.62" -- and the small print sits inside that same panel, which is the
+     whole reason it is checked here. A test that states a wider rule than the
+     codebase has is worse than no test: the next person reads the message, not
+     the assertion, and now believes something false about the site. */
+  const note = JSON.parse(
+    readFileSync(new URL("../pricing.json", import.meta.url), "utf8")).price_note;
+  assert.doesNotMatch(note, /bushel/i,
+    "no unit word inside the price panel; the rest of the page may use it");
+  assert.doesNotMatch(note, /[—–]/, "no em or en dashes in reader-facing copy");
+  assert.doesNotMatch(note, /soy/i, "these sites price corn only");
+  assert.doesNotMatch(note, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, "no emoji");
 });
