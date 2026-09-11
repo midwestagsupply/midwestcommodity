@@ -122,7 +122,36 @@ jobs:
         run: |
           echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
 
+      # CHECK OUT THE BRANCH TIP, NOT THE SHA THIS RUN WAS QUEUED AT.
+      #
+      # Measured on midwestcommodity, 2026-09-10:
+      #   20:47:36  a2e0c12 pushed, "3:47pm"
+      #   20:56:34  68ea3f6 pushed, "3:56pm", parent a2e0c12
+      #   20:56:44  THIS run checks out a2e0c12 -- already ten seconds stale
+      #   20:56:53  its push is rejected, "fetch first", job exits 1
+      #
+      # Both runs were in `concurrency: prices`, so they did NOT run at once.
+      # The queue is what did it. `github.sha` is fixed when a run is CREATED,
+      # and bare `actions/checkout` fetches that exact SHA:
+      #
+      #   fetch --depth=1 origin +a2e0c125...:refs/remotes/origin/main
+      #
+      # So a run that waits in the concurrency queue starts from whatever HEAD
+      # was when it was queued, regenerates the page on top of a commit that is
+      # no longer the tip, and cannot push. The guard against collision is what
+      # creates the staleness. Nothing is corrupted -- the push is refused, not
+      # merged -- but the run goes red and its work is thrown away.
+      #
+      # `ref` takes the branch instead, so a queued run starts from the tip it
+      # actually has to build on. The prices are regenerated from the feed on
+      # every run, so starting from a newer commit costs nothing.
+      #
+      # This matters more than it did: the schedule went from half-hourly off
+      # hours to ten-minutely around the clock on 2026-09-11, which is more
+      # runs, which is more queueing, which is more of exactly this.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v4
         with: { node-version: "20" }
 

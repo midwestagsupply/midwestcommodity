@@ -43,7 +43,15 @@ jobs:
     if: startsWith(github.event.issue.title, 'Update ')
     runs-on: ubuntu-latest
     steps:
+      # The branch tip, not the SHA this run was queued at. Same reason as
+      # prices.yml, where it was measured: `github.sha` is fixed when a run is
+      # created, and a bare checkout fetches that exact commit, so a run that
+      # waited starts from a commit that is no longer the tip and cannot push.
+      # This job writes hours.json and pricing.json; prices.yml commits
+      # hours.json too, so they are not independent files.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       # The applier lives in ONE place. Copying it into both site repositories
       # would make two of it, and two copies of a validator is how the two
@@ -141,11 +149,13 @@ jobs:
       # a job that triggers itself for ever, and it applies here whether or not
       # this repository wanted it.
       #
-      # So `Prices` waits for its next cron -- ten minutes in market hours, and
-      # `Hours` waits for ITS next cron, which is around 8am, 5pm and midnight
-      # Central. The office posts "closed today" at seven in the morning, the
-      # screen says it saved, the issue closes, and the site keeps saying
-      # 8:00a to 5:00p until five in the afternoon.
+      # So `Prices` waits for its next cron -- ten minutes, any hour, any day
+      # since 2026-09-11 -- and `Hours` waits for ITS next cron, which is around
+      # 8am, 5pm and midnight Central. Ten minutes is survivable. `Hours` is
+      # not: the office posts "closed today" at seven in the morning, the screen
+      # says it saved, the issue closes, and the box at the top of the site goes
+      # on saying the elevator is open until the next `Hours` cron hours later.
+      # That is the gap this step closes.
       #
       # workflow_dispatch is the documented exception to that guard: since
       # September 2022 GITHUB_TOKEN may raise workflow_dispatch and
