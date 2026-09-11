@@ -164,16 +164,6 @@ section > .wrap > p.intro{color:var(--grey);margin-bottom:14px;max-width:48em;fo
 .shrink strong{font-size:1.05em}
 .range{font-size:clamp(1.08rem,1.02rem + .38vw,1.26rem);color:var(--grey);margin-bottom:18px;max-width:46em}
 .drop{border:2px solid var(--ink);border-radius:var(--radius);background:var(--paper);overflow:hidden}
-.drop summary{list-style:none;cursor:pointer;padding:18px 20px;font-weight:700;font-size:clamp(1.05rem,1rem + .4vw,1.22rem);display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--paper)}
-.drop summary::-webkit-details-marker{display:none}
-.drop summary:hover{background:var(--band)}
-.drop summary:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
-.drop .when-open{display:none}
-.drop[open] .when-closed{display:none}
-.drop[open] .when-open{display:inline}
-.drop[open] summary{border-bottom:2px solid var(--ink)}
-.chev{width:13px;height:13px;border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);transform:rotate(45deg);margin-bottom:5px;flex:0 0 auto}
-.drop[open] .chev{transform:rotate(225deg);margin-bottom:-5px}
 .schedcol{min-width:0}
 .schedhd{font-size:clamp(1.02rem,.97rem + .35vw,1.15rem);margin-bottom:8px;padding-left:2px}
 .dropbody{padding:20px}
@@ -510,22 +500,18 @@ footer a[href^="tel:"]{display:inline-block;padding:10px 3px;margin:-10px 0}
    border only where an element is genuinely a distinct object. Page
    height moves by under 20px, so nothing below the fold shifts. */
 .sister-a,.ways,.sched,.shrink,.drop,.act,.lics{border-width:1px}
-/* The drop's open state draws its own 2px divider under the summary and
-   that rule is doing a different job -- it separates a control from the
-   thing it opened -- so it stays. */
-
 /* ---- 3. IT PRINTS AS A WORKING SHEET --------------------------------
-   The drying schedules are the thing an office actually prints and pins
-   up. Before this they printed as NOTHING: they live in a shut
-   <details>, and a browser hides that in its own shadow tree where
-   display:block cannot reach it. Measured on 2026-08-28: the .dropbody
-   reported 1,400px tall and the <details> around it reported 0.
-   ::details-content is the handle. */
+   The drying schedules are the thing an office actually prints and pins up.
+   They once printed as NOTHING: they lived in a shut details element, which a
+   browser hides in its own shadow tree where display:block cannot reach it.
+   Measured on 2026-08-28: the .dropbody reported 1,400px tall and the element
+   around it reported 0, and ::details-content was the handle.
+
+   Sig removed the toggle on 2026-09-11 -- the schedules are plain open markup
+   now -- so there is nothing left to force and those overrides are gone. The
+   history stays written down because the reason they existed is worth knowing
+   if a collapsible ever comes back to this page. */
 @media print{
-  .drop[open] .dropbody,.dropbody{display:block!important}
-  .drop::details-content{content-visibility:visible!important;block-size:auto!important}
-  .drop .chev,.drop .when-open,.drop .when-closed{display:none!important}
-  .drop summary{border-bottom:2px solid #000!important}
 
   /* Colour is spent on ONE thing -- the panel header, which is what tells
      a printed sheet which company it came from. Everything else is black
@@ -717,9 +703,6 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
 .ways,.drop,.act,.lics,.sister-a{border:none;border-top:2px solid var(--ink);border-radius:0;background:none}
 .ways .way,.lics .lic{border-bottom:1px solid var(--line-lt);padding-left:0;padding-right:0}
 .ways .way:last-child,.lics .lic:last-child{border-bottom:none}
-.drop summary{padding-left:0;padding-right:0;background:none}
-.drop summary:hover{background:none;text-decoration:underline;text-underline-offset:3px}
-.drop[open] summary{border-bottom:1px solid var(--line)}
 .dropbody{padding:18px 0 4px}
 .act{padding:13px 0;min-height:0;border-top-width:1px}
 .act:hover{background:none;text-decoration:underline;text-underline-offset:3px}
@@ -798,34 +781,11 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
    The size is absolute, not relative. `.bids td.pay` is clamped up to 5.4rem
    by the vision layout, so an em-relative change line would render at three
    and a half rem on a wide desktop. */
-.bids td.pay .chg{
-  display:block;
-  margin-top:3px;
-  /* --body IS NOT A VARIABLE THIS FILE DEFINES. The names are --font and
-     --display. var(--body) is therefore invalid at computed-value time,
-     font-family falls back to inherit, and the parent `.bids td.pay` supplies
-     var(--display) -- so "up 3 cents from Monday" rendered in the condensed
-     Wordmark logo face, in the same physical file as the mark at the top of
-     the page. Only at 681px and up, because that is where td.pay picks up
-     --display; on a phone it was correct, which is why it survived. */
-  font-family:var(--font);
-  font-weight:600;
-  font-size:clamp(.76rem, .72rem + .14vw, .95rem);
-  line-height:1.25;
-  letter-spacing:.005em;
-  color:var(--grey);
-  white-space:nowrap;
-}
-.bids td.pay .chg.up::before{content:"\25B2\00a0"}
-.bids td.pay .chg.down::before{content:"\25BC\00a0"}
-.bids td.pay .chg.flat::before{content:"\2013\00a0"}
-
-/* On a phone the pay column is already tight and the row carries the delivery
-   name beside it, so the line wraps to two if it must rather than pushing the
-   table wider. The 2026-08-18 phone pass is what this must not undo. */
-@media(max-width:680px){
-  .bids td.pay .chg{font-size:.74rem;white-space:normal;margin-top:2px}
-}
+/* THE CHANGE LINE IS GONE. It rendered "down 4c from Thursday" under the price
+   until Sig removed it on 2026-09-11. Its rules are deleted rather than left
+   commented: the panel guard in test/prices.test.mjs reads THIS FILE to decide
+   which classes may appear in the markup, so a stale selector here would go on
+   quietly licensing a class nothing renders. */
 
 /* ── THE QUARTER-CENT SLOT ────────────────────────────────────────────────
    The futures quote renders as $5.33 plus a fraction glyph, and the glyph sits

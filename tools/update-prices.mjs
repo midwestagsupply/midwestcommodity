@@ -27,7 +27,7 @@
    the price should not pretend to.
 */
 import { readFileSync, writeFileSync } from "node:fs";
-import { record, prune, change, EMPTY as HISTORY_EMPTY }
+import { record, prune, EMPTY as HISTORY_EMPTY }
   from "./price-history.mjs";
 
 /* ---- the decisions, all in one place ---------------------------------- */
@@ -590,42 +590,37 @@ export function futHtml(dollars) {
 
 const futText = (r) => (r.futures == null ? "&mdash;" : futHtml(r.futures));
 
-/* THE CHANGE LINE SITS UNDER THE PRICE, not beside it and not in its own
-   column. It answers "should I haul today", which is a question about the
-   number directly above it; a fifth column would make the reader carry the
-   figure across the table to find out what it did.
+/* THE CHANGE LINE IS GONE FROM THE PANEL. Sig, 2026-09-11: "please remove the
+   down x cents from thursday or corresponding days entirely."
 
-   `chg` is null whenever the history cannot support a sentence, and null
-   renders NOTHING -- no dash, no "0c". See tools/price-history.mjs for why
-   that is the easy path and not a fallback. */
-const line = (label, sub, r, chg) =>
+   It used to render under the price as "down 4c from Thursday". The page now
+   shows what we pay and nothing about what it did yesterday.
+
+   WHAT IS NOT GONE: tools/price-history.mjs still records every session and
+   the workflow still commits price-history.json, so the dated record of what
+   was posted is unbroken and change() is still covered by its own tests. Only
+   the rendering was removed -- restoring it is one span. */
+const line = (label, sub, r) =>
   `          <tr><td class="mo">${esc(label)}` +
   (sub ? `<span class="con">${esc(sub)}</span>` : "") + `</td>` +
   `<td class="fut r m-hide">${futText(r)}` +
   (r.futuresMonth ? `<span class="con">${esc(r.futuresMonth)}</span>` : "") + `</td>` +
   `<td class="bas r m-hide">${basisText(r.basisDollars)}</td>` +
-  `<td class="pay r">${money(r.pay)}` +
-  (chg ? `<span class="chg ${chg.direction}">${esc(chg.text)}</span>` : "") +
-  `</td></tr>`;
+  `<td class="pay r">${money(r.pay)}</td></tr>`;
 
 export function renderPriced(b, history = HISTORY_EMPTY, when = new Date()) {
   const { spot, harvest, window } = headline(b.bids);
   if (!spot) throw new Withdraw("no rows to lead with");
-
-  /* The history is keyed on commodity and delivery, which is what the reader
-     asked for is priced on -- not on the panel's label. "Cash, corn" and
-     "Harvest" are captions; Corn/August and Corn/October are the contracts. */
-  const chg = (r) => change(history, r, r.pay, when);
 
   /* THE TICKED MONTHS, OR THE OLD TWO. Nothing in between: a `months` table
      that exists but ticks nothing has already been refused in board(), so the
      list here is never empty when it is used at all. */
   const picked = publishedRows(b.bids, b.months);
   const rows = picked
-    ? picked.map((r) => line(r.delivery, "", r, chg(r)))
-    : [line("Cash, corn", `${spot.delivery} delivery`, spot, chg(spot)),
+    ? picked.map((r) => line(r.delivery, "", r))
+    : [line("Cash, corn", `${spot.delivery} delivery`, spot),
        ...(harvest
-         ? [line("Harvest", window.join(" and ") + " delivery", harvest, chg(harvest))]
+         ? [line("Harvest", window.join(" and ") + " delivery", harvest)]
          : [])];
 
   /* "AS OF" IS WHEN WE LOOKED, NOT WHEN THEIR BOARD MOVED.
@@ -967,7 +962,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
                    "'as of' date on the page will show it. Worth a look.");
   }
 
-  /* THE HISTORY IS READ BEFORE TODAY IS RECORDED INTO IT, so the change line
+  /* THE HISTORY IS READ BEFORE TODAY IS RECORDED INTO IT, so a reader
      compares against yesterday and not against the number it is about to
      write. Recording first would make every price "unchanged since today". */
   /* MISSING AND UNREADABLE ARE NOT THE SAME THING, and conflating them costs
@@ -988,16 +983,16 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
       historyBroken = true;
       console.error(`  WARNING: ${HISTORY_PATH} will not parse (${e.message}).`);
       console.error(`  It is NOT being overwritten — it holds the only copy of the`);
-      console.error(`  daily closes. Today's price publishes without a change line.`);
+      console.error(`  daily closes. Today's price publishes; the record does not gain a day.`);
     }
   }
 
-  /* NOTHING ABOUT THE CHANGE LINE MAY STOP A PRICE FROM PUBLISHING.
+  /* NOTHING ABOUT THE HISTORY MAY STOP A PRICE FROM PUBLISHING.
      This script runs every half hour on two live customer price boards. The
-     price is the product; the change line is a courtesy on top of it. A
-     corrupt price-history.json, a clock oddity, anything at all in here --
-     the price still goes up, the line just does not appear, and the run says
-     so in the log rather than failing red and freezing the board. */
+     price is the product; the history is a record kept beside it. A corrupt
+     price-history.json, a clock oddity, anything at all in here -- the price
+     still goes up, the record just skips a day, and the run says so in the
+     log rather than failing red and freezing the board. */
   let html = readFileSync("index.html", "utf8");
   let inner;
   if (!b) inner = renderWithdrawn();
@@ -1006,8 +1001,8 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
     try {
       inner = renderPriced(b, history, now);
     } catch (e) {
-      console.warn(`  NOTE: the change line could not be built (${e.message}). ` +
-                   `Publishing the price without it.`);
+      console.warn(`  NOTE: the panel could not be built from the history ` +
+                   `(${e.message}). Publishing the price without it.`);
       inner = renderPriced(b, HISTORY_EMPTY, now);
     }
   }
@@ -1026,7 +1021,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
         changedHistory = true;
     } catch (e) {
       console.warn(`  NOTE: today's close could not be recorded (${e.message}). ` +
-                   `Tomorrow's change line will skip today; the price is unaffected.`);
+                   `The record will skip today; the price is unaffected.`);
     }
   }
 
