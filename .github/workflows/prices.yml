@@ -17,45 +17,34 @@ on:
     # :00, which is when every cron on the platform fires at once and a job
     # asking for it waits behind all of them.
     #
+    # ONE SCHEDULE, EVERY TEN MINUTES, ALL DAY, EVERY DAY.
+    #
+    # This replaced three windows: ten-minutely 12:00-21:59 on weekdays, half
+    # hourly off hours, half hourly at the weekend. The windows existed because
+    # the feed behind them was not uniform -- bids polled hourly off hours and
+    # three-hourly at the weekend, so building more often than that bought
+    # nothing but a rerun of the same file. bids now polls every ten minutes
+    # around the clock, so the reason the windows were narrow is gone, and a
+    # window that has outlived its reason is just a gap.
+    #
     # THE MINUTES ARE CHOSEN AGAINST THE SCRAPER'S, NOT PICKED.
     #
-    # This job reads a file the `bids` repository writes on its own schedule.
-    # Reading a few minutes BEFORE that write instead of after it costs a full
-    # cycle of freshness for nothing, and that is what the old minutes did off
-    # hours: they ran at :17 and :47 while bids writes at :25, so the :17 read
-    # landed eight minutes early and every off-hours build served a file the
-    # better part of an hour old. Measured across a full week before changing.
-
-    # Every ten minutes through the grain day. 12:00-21:59 UTC covers 7am-4pm
-    # Central in both CST and CDT, so the clocks changing cannot quietly shift
-    # the window out of market hours. bids polls at :03/:13/... so each of
-    # these lands four minutes after a fresh write, every time.
-    - cron: "7,17,27,37,47,57 12-21 * * 1-5"
-
-    # Every half hour outside the grain day. NOT hourly, and the reason is the
-    # hours box rather than the price: it flips to "Closed for the day" at
-    # closing time and can only be as current as the last build, so this is
-    # what decides how long the page says "open" after they have shut. At :05
-    # that is five minutes past the 5pm Central close. Hourly would make it
-    # thirty-five, and a page saying OPEN with the gate shut is the failure
-    # this box exists to prevent.
+    # bids writes at :03/:13/:23/:33/:43/:53. Reading at :07 lands four minutes
+    # after a fresh write. Reading a few minutes BEFORE that write instead of
+    # after it costs a full cycle of freshness for nothing, and that is what
+    # the old off-hours minutes did: they ran at :17 and :47 while bids wrote
+    # at :25, so the :17 read landed eight minutes early and every off-hours
+    # build served a file the better part of an hour old.
     #
-    # The :35 is the freshness half: bids writes hourly at :25, so :35 reads a
-    # ten-minute-old file. The :05 reads a forty-minute-old one, which is the
-    # price of catching the close promptly and is worth paying.
-    - cron: "5,35 22,23,0-11 * * 1-5"
-
-    # The weekend, on the same half-hour grid rather than the old three hours.
-    # Saturday has a noon close and the box has to flip for it; at three-hourly
-    # the page could say OPEN for seventy-seven minutes after the gate shut.
+    # What this buys the hours box, which is the other thing this job renders:
+    # it flips to "Closed for the day" at closing time and can only be as
+    # current as the last build. At ten minutes the page can say OPEN for at
+    # most ten minutes after the gate shuts. It was thirty-five.
     #
-    # Note what this does NOT fix. bids polls only every three hours at the
-    # weekend -- deliberately, for reasons written into its own poll.yml -- so
-    # the FEED can still be up to two and a half hours old here however often
-    # this job runs. The scraper is the binding constraint at the weekend, not
-    # this. What the half hour buys at the weekend is the hours box, and that
-    # is enough on its own.
-    - cron: "5,35 * * * 6,0"
+    # GitHub honours a fraction of what is asked here -- 66 of 380 requested
+    # fires measured across the bids repository, 17.4%. That is why this is the
+    # fallback and the dispatch below is the mechanism.
+    - cron: "7,17,27,37,47,57 * * * *"
   # THE FEED TELLS US, INSTEAD OF US ASKING SIX TIMES AN HOUR AND HOPING.
   #
   # dnilgis/bids fires this the moment Big River's price actually moves, so the
@@ -66,10 +55,11 @@ on:
   # Central the feed had moved at 10:25 and this page still said "as of
   # 9:49am". Nothing was broken; the job had not run.
   #
-  # THE SCHEDULE ABOVE STAYS EXACTLY AS IT WAS. It is now a safety net rather
-  # than the mechanism -- it catches a price that moved while the token was
-  # expired, and it is what runs at all if the dispatch is ever removed.
-  # Trading a working fallback for a tidier file is not a trade worth making.
+  # THE SCHEDULE ABOVE IS A SAFETY NET, NOT THE MECHANISM. It catches a price
+  # that moved while the token was expired, and it is what runs at all if the
+  # dispatch is ever removed. Trading a working fallback for a tidier file is
+  # not a trade worth making, which is why it was widened to cover the clock
+  # rather than deleted once the dispatch proved itself.
   #
   # The payload carries which source moved and its pricedAt, so the run log
   # says why it ran rather than just that it did.
