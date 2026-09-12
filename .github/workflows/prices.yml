@@ -1,6 +1,6 @@
 # Put today's corn bid on the page, or take it off.
 #
-# Reads the JSON the `bids` repository commits from Big River's board and
+# Reads the JSON the `emmertadmin` repository commits from Bids' board and
 # renders it into index.html. Needs no secrets: `bids` is a public
 # repository, so this is a plain unauthenticated read, and the commit back
 # into this repository uses the built-in GITHUB_TOKEN.
@@ -47,13 +47,20 @@ on:
     - cron: "7,17,27,37,47,57 * * * *"
   # THE FEED TELLS US, INSTEAD OF US ASKING SIX TIMES AN HOUR AND HOPING.
   #
-  # dnilgis/bids fires this the moment Big River's price actually moves, so the
+  # emmertadmin fires this the moment Bids' price actually moves, so the
   # page rebuilds inside a minute instead of inside a cron GitHub is not
-  # obliged to honour. Measured on 2026-08-20: the bids repository commits on
-  # every run, so its commits are an exact run count, and it recorded ONE run
-  # in the 13:00 UTC hour and TWO in the 14:00 hour against six asked. At 10:45
-  # Central the feed had moved at 10:25 and this page still said "as of
-  # 9:49am". Nothing was broken; the job had not run.
+  # obliged to honour. Measured on 2026-08-20, when the reader was still
+  # dnilgis/bids: that repository commits on every run, so its commits are an
+  # exact run count, and it recorded ONE run in the 13:00 UTC hour and TWO in
+  # the 14:00 hour against six asked. At 10:45 Central the feed had moved at
+  # 10:25 and this page still said "as of 9:49am". Nothing was broken; the job
+  # had not run. The delivery rate is the platform's, not that repository's, so
+  # the measurement carries over.
+  #
+  # AND IT IS OPTIONAL AT THE SENDING END. emmertadmin nudges only if a
+  # SITE_DISPATCH_TOKEN secret is set there; without it the schedule above is
+  # the whole mechanism and the price is at most ten minutes behind. A missing
+  # token must never be the reason a price is late.
   #
   # THE SCHEDULE ABOVE IS A SAFETY NET, NOT THE MECHANISM. It catches a price
   # that moved while the token was expired, and it is what runs at all if the
