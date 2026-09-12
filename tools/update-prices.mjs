@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 /* Put today's corn bid on the page, or take it off.
 
-   The price is read from Big River's board by the `bids` repository and
+   The price is read from Bids' board by the `emmertadmin` repository and
    committed there as JSON. This reads that file and renders it into
    index.html. Nothing here scrapes anything; if the reader is broken this
    script's only job is to notice and say nothing rather than say something
    wrong.
+
+   IT USED TO BE `dnilgis/bids`, up to 2026-09-12. That repository reads 935
+   boards through a headless browser, and twice in two days its failures took
+   these prices down for reasons that had nothing to do with this elevator: an
+   unhandled promise rejection in its browser driver, and a queued run that
+   checked out a stale SHA and could not push. The reader now lives in
+   `emmertadmin` beside the staff screen, reads one board with one HTTP
+   request, and belongs to this business.
 
    THE RULE THIS FILE EXISTS TO ENFORCE: a price goes on the page only when
    we can still see the reader working. Not when the market is quiet -- a
@@ -33,11 +41,11 @@ import { record, prune, EMPTY as HISTORY_EMPTY }
 /* ---- the decisions, all in one place ---------------------------------- */
 
 const FEED_URL =
-  "https://raw.githubusercontent.com/dnilgis/bids/main/data/boyceville.json";
+  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/boyceville.json";
 
 /* THE FEED FILE'S OWN checkedAt IS NOT WHEN WE LAST CHECKED.
  *
- * `bids` rewrites a source file when the price CHANGES, or on a six-hour
+ * The reader rewrites the source file when the price CHANGES, or on a six-hour
  * heartbeat. So on a quiet afternoon boyceville.json can say checkedAt 1:40pm
  * while the reader has in fact looked every ten minutes since. Measured
  * 2026-08-20 at 22:03Z: the file said 18:40, the reader had run at 21:49.
@@ -50,14 +58,28 @@ const FEED_URL =
  *
  * index.json is rewritten on EVERY poll and carries the true time. */
 const INDEX_URL =
-  "https://raw.githubusercontent.com/dnilgis/bids/main/data/index.json";
+  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/index.json";
 
-/* How cold `checkedAt` may get before we stop publishing. The reader
-   heartbeats every 6 hours even when the price has not moved, so anything
-   past 14 means it has missed two heartbeats in a row and we are no longer
-   watching a live board. Matches the figure the Cloudflare publisher used,
-   so moving to Actions does not quietly change when the sites go dark. */
-const FEED_MAX_AGE_H = 14;
+/* How cold `checkedAt` may get before we stop publishing.
+ *
+ * FOURTEEN HOURS WAS THE RIGHT NUMBER FOR A FEED WE NO LONGER READ. While the
+ * price came from `dnilgis/bids`, `checkedAt` was measured against a file that
+ * repository rewrites on a price move or a six-hour heartbeat, so 14 meant it
+ * had missed two heartbeats in a row -- the earliest a reader's silence could
+ * be told from a quiet market.
+ *
+ * The reader in `emmertadmin` rewrites data/index.json on EVERY pass, ten
+ * minutes apart, and INDEX_URL above is where this measures the age. So four
+ * hours is twenty-four consecutive failed passes. That is a far stronger
+ * statement than fourteen hours ever was, and it is reached sooner: a dead
+ * reader now takes the price down in four hours rather than in the small
+ * hours of the following morning.
+ *
+ * IT IS THE SAME NUMBER AS ALARM_AFTER_H in emmertadmin/scripts/read.mjs, and
+ * emmertadmin/test/mirror.test.mjs fails if the two drift. If the reader
+ * alarmed later than this, the sites would go dark with nobody told; if it
+ * alarmed sooner, an issue would be opened about a price that is still up. */
+const FEED_MAX_AGE_H = 4;
 
 /* A corn cash bid outside this is a decimal point in the wrong place, not a
    market. Same band the reader itself enforces. A sanity rail, not a
@@ -66,7 +88,7 @@ const FLOOR = 2.0, CEILING = 12.0;
 
 /* THE SAME TOLERANCE AT BOTH ENDS, FOR THE SAME REASON.
  *
- * Corn futures move in quarter cents and Big River's front-month cell lags
+ * Corn futures move in quarter cents and Bids' front-month cell lags
  * its own cash by one for minutes at a time. The reader upstream already
  * refuses anything worse and refuses a board where the failures are not a
  * minority. This is the independent second check -- defence in depth is worth

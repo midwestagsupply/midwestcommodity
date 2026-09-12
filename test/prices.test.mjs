@@ -670,8 +670,17 @@ test("clearing the boxes hands it straight back to the feed", async () => {
   const cwd = process.cwd();
   try {
     process.chdir(dir);
+    /* DERIVED FROM THE LIMIT, NOT A FIXED CLOCK.
+       This ran at NOWD, 4.45h after LIVE.checkedAt. That was comfortably
+       inside the old 14h limit and is outside the 4h one, so on 2026-09-12
+       this test started reporting "stale" -- and the thing it is about, the
+       by-hand boxes handing control back, was working perfectly. A test that
+       needs a FRESH feed should say so in terms of the limit, the way the
+       freshness tests above already do, or it breaks again the next time the
+       number moves and sends somebody hunting the wrong fault. */
+    const fresh = at(CONFIG.FEED_MAX_AGE_H - 1);
     await main({ fetchImpl: async () => ({ ok: true, status: 200,
-      text: async () => JSON.stringify(LIVE) }), now: NOWD });
+      text: async () => JSON.stringify(LIVE) }), now: fresh });
     const j = JSON.parse(readFileSync(join(dir, "bids.json"), "utf8"));
     assert.equal(j.status, "ok");
     assert.equal(j.count, 7);
