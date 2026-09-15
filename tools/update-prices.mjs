@@ -40,8 +40,41 @@ import { record, prune, EMPTY as HISTORY_EMPTY }
 
 /* ---- the decisions, all in one place ---------------------------------- */
 
+/* WHY THIS POINTS AT dnilgis/bids AND NOT AT emmertadmin -- 2026-09-14.
+ *
+ * Both repositories read the SAME board, with the same reader, on the same
+ * ten-minute cron. emmertadmin/test/fork.test.mjs asserts its output is "byte
+ * for byte what dnilgis/bids produced" against three real captures, and the two
+ * live files were compared field by field the day this changed: same top-level
+ * keys, same bid-row keys, same source block. Only the `schema` string differs,
+ * and nothing here reads it.
+ *
+ * WHAT DIFFERS IS DELIVERY. Counted on 2026-09-14, passes that actually landed:
+ *
+ *     dnilgis/bids                   84
+ *     midwestagsupply/emmertadmin     5
+ *
+ * Same cron -- "3,13,23,33,43,53 * * * *" -- in both. GitHub's scheduler is
+ * best effort and it was dropping almost every fire in emmertadmin: 163 runs in
+ * that repository's whole history, every one of them GREEN, because a dropped
+ * fire produces no run at all. Nothing to go red, nothing to retry, nothing in
+ * the run list to notice.
+ *
+ * The cost of that was on the customer's page. The sites withdraw when the
+ * reader's last success is over FEED_MAX_AGE_H old, and the gaps between
+ * emmertadmin's passes that day were 4h41m, 5h20m and 6h12m -- so the panel
+ * read "Call for today's price" three separate times on a Monday with a healthy
+ * board and a correct price sitting in the other repository the whole time.
+ *
+ * bids covers the full six passes an hour in ten of eighteen hours and never
+ * drops below two. It is the same number from the same board; it is simply the
+ * one that arrives.
+ *
+ * emmertadmin still reads, still publishes, and its watchdog still covers it.
+ * This is about which clock the SITES trust, and they should trust the one that
+ * ticks. */
 const FEED_URL =
-  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/boyceville.json";
+  "https://raw.githubusercontent.com/dnilgis/bids/main/data/boyceville.json";
 
 /* THE FEED FILE'S OWN checkedAt IS NOT WHEN WE LAST CHECKED.
  *
@@ -57,8 +90,13 @@ const FEED_URL =
  * asking "has the price moved lately?" all along.
  *
  * index.json is rewritten on EVERY poll and carries the true time. */
+/* The same repository as FEED_URL, necessarily: freshest() compares the two
+   clocks against each other, and two clocks from two different readers would be
+   comparing one repository's luck with another's. bids' index carries a source
+   keyed "boyceville" with its own checkedAt, which is exactly what
+   checkedAtFrom() looks up. */
 const INDEX_URL =
-  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/index.json";
+  "https://raw.githubusercontent.com/dnilgis/bids/main/data/index.json";
 
 /* How cold `checkedAt` may get before we stop publishing.
  *
