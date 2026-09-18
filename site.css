@@ -25,28 +25,56 @@
      two files differ in STRUCTURE rather than in values, they start to
      drift, and a fix applied to one will silently miss the other.
 
-     This site is MIDWEST COMMODITY, and it takes a DEEP PINE GREEN, so the
-     two sites are built to the same standard: a brand colour carrying white
-     text in the wordmark rule, the Call button and the panel header, with the
-     yellow left to do its one operational job on both. Until 2026-08-20 this
-     site had no brand colour of its own -- --brand was the same value as
-     --yellow, and the panel header was plain black.
+     This site is MIDWEST COMMODITY, and since 2026-09-18 its colour comes out
+     of its own mark. Until 2026-08-20 it had no brand colour of its own --
+     --brand was the same value as --yellow, and the panel header was plain
+     black. From 2026-08-20 it was a deep pine #1c5f52, which was a good colour
+     and nobody's logo.
 
-     THE GREEN WAS MEASURED, NOT PICKED. Green against the other site's barn
-     red is precisely the pair red-green colour blindness collapses, so every
-     candidate was simulated. A true pine green (#1f5133) is the better-looking
-     colour and lands 18 from the barn red under protanopia, below the ~25 at
-     which two colours start being taken for one another -- about one man in
-     twelve. This one carries a little blue, which is the channel protanopia
-     leaves alone, and measures:
+     THE LEAF IS THE BRAND, AND IT IS TOO LIGHT TO BE ONE. The green in
+     assets/logo-midwestcommodity.png is #24b252, sampled, 13,646 opaque pixels
+     of it. On white it is 2.78:1. That cannot carry body text and it must not
+     be the ground of the Call button, which is how a grower locks a price --
+     often on a phone, outdoors, in sun. So --brand is that leaf with its hue
+     (139.44) and its saturation (0.6636) kept exactly, and LIGHTNESS alone
+     taken down to 0.240, where it measures 7.06:1 on white. Their green, dark
+     enough to be text. The pine it replaces was 7.48:1, so this gives up
+     0.42 of a ratio point and stays well above the 4.5 floor.
 
-       normal 85  deuteranopia 52  PROTANOPIA 27  tritanopia 82
+     The leaf itself is kept as --leaf below, at full strength, for decoration
+     only. The artwork carries the real green regardless and is untouched.
 
-     and 64 at its closest from the yellow it sits beside. White on it is
-     7.48:1; the "as of" tint is 5.59:1. If you change this green, re-measure
-     it against #b8332a in all four -- the hue that looks safest is not. */
-  --brand:#1c5f52;--brand-dk:#17493f;--brand-lt:#26786a;--brand-dark-txt:#54ad9a;--on-brand:#ffffff;
-  --panel-hd:#1c5f52;--panel-hd-fg:#ffffff;--panel-hd-as:#cfe3de;
+     WHAT THIS COSTS, MEASURED 2026-09-18. The note this replaces asked for the
+     green to be re-simulated against the other site's brand in all four vision
+     types before it moved. It has been, with CIE76 distance after a Vienot
+     1999 dichromat simulation. That is NOT the pipeline the old numbers came
+     from -- it reproduces their normal-vision 85 exactly and none of their
+     dichromat figures -- so read these as old against new under ONE method,
+     not as a continuation of that row:
+
+       old pine #1c5f52 vs old barn red #b8332a: normal 85  deut 47  prot 18  trit 122
+       new      #15662f vs new maroon   #82313a: normal 74  deut  6  prot 28  trit 106
+
+     Protanopia improves. DEUTERANOPIA COLLAPSES: 6 is two colours a deuteranope
+     cannot tell apart at all. Both brands are now dark and mid-saturated, which
+     is what does it. It is accepted rather than fixed, for one reason: as of
+     2026-09-18 the brand colour is no longer what tells the two sites apart.
+     The masthead is each company's real mark and the card at the foot is the
+     other company's real mark -- different words, different shapes, a leaf on
+     one of them. Colour is not the only channel here and is no longer even the
+     main one. If the artwork is ever pulled back out and the wordmark lockup
+     returns, this number has to be solved before that goes live, because then
+     the colour IS the channel again. */
+  --brand:#15662f;--brand-dk:#105025;--brand-lt:#1b833d;--brand-dark-txt:#2dd463;--on-brand:#ffffff;
+  /* The leaf at full strength. 2.78:1 on white, so it may never carry text,
+     never be a ground under text, and never be the only thing saying what
+     something means. Recorded here so the sampled value is written down once
+     and nobody has to re-sample or guess it. Nothing paints with it today. */
+  --leaf:#24b252;
+  /* The "as of" tint is the brand mixed 0.797 into the paper, which is the
+     fraction this file already used. Against the new green it measures 5.14:1,
+     down from 5.59:1 and still clear of the 4.5 floor. */
+  --panel-hd:#15662f;--panel-hd-fg:#ffffff;--panel-hd-as:#cfe0d5;
 
   /* THE OTHER SITE'S COLOUR, FOR THE ONE PLACE THE OTHER SITE APPEARS.
      The "Our other location" card at the foot of the page renders the SISTER
@@ -55,10 +83,12 @@
      colour, which is worse than no colour at all: it is the confusion Jessi
      reported, printed on the one element that exists to distinguish them.
      Caught by rendering the page, not by reading the stylesheet. */
-  --sister-brand:#b8332a;
+  /* Badger Grain's own colour. Barn red until 2026-09-18; now #82313a, the
+     maroon sampled out of their mark. See their site.css for the sampling. */
+  --sister-brand:#82313a;
 }
-/* THE BRAND AS TEXT. On white the brand itself reads (5.9:1 on the barn
-   red, 7.5:1 on the pine). On the dark paper it does not -- 3.00:1 and
+/* THE BRAND AS TEXT. On white the brand itself reads (7.1:1 on this green,
+   8.6:1 on Badger's maroon). On the dark paper it does not -- 3.00:1 and
    2.38:1 -- and the vision layout puts the brand on the page ground as
    type for the first time, where the old filled tile had carried white on
    it instead. So the dark scheme lightens it, per site, measured. */
@@ -98,7 +128,13 @@ header .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;paddi
 .wmrule{display:block;width:100%;height:clamp(3px,.55vw,5px);background:var(--brand);margin:clamp(3px,.5vw,5px) 0 clamp(2px,.4vw,4px)}
 .wm2{font-family:var(--display);font-size:clamp(.66rem,2.36vw,1.24rem);font-weight:700;letter-spacing:.085em;text-transform:uppercase;white-space:nowrap;line-height:1}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.tag{font-size:clamp(.85rem,.82rem + .18vw,.95rem);color:var(--grey);max-width:34em;line-height:1.45}
+/* THE TAGLINE IS PAGE COPY, NOT THE THIRD LINE OF THE LOGO. The masthead used
+   to be a CSS wordmark that carried its own bottom margin. When it became an
+   <img> on 2026-09-18 that margin went with it and the gap fell to 6px under a
+   118px mark, so "Grain buying, drying and storage" read as part of the
+   lockup -- directly under SUPPLY LLC, at a similar size, in a similar grey.
+   Measured, not guessed. This scales with the mark, which is itself clamped. */
+.tag{margin-top:clamp(10px,1.3vw,18px);font-size:clamp(.85rem,.82rem + .18vw,.95rem);color:var(--grey);max-width:34em;line-height:1.45}
 .tag .town{display:block;font-weight:600;color:var(--ink);letter-spacing:.02em}
 .pricecol{display:flex;flex-direction:column;gap:14px;min-width:0}
 .call{display:block;width:100%;text-align:center;background:var(--brand);color:var(--on-brand);font-weight:800;font-size:clamp(1.1rem,1rem + .5vw,1.38rem);padding:18px 22px;text-decoration:none;border-radius:var(--radius);border:3px solid var(--ink)}
@@ -191,7 +227,9 @@ section > .wrap > p.intro{color:var(--grey);margin-bottom:14px;max-width:48em;fo
    the app icon. So it stops being a literal: both sites now point at the pale
    tint of their OWN brand that the panel header already carries, which is the
    value Badger was using here by hand anyway. Badger 4.94:1 (unchanged),
-   Midwest 5.59:1. */
+   Midwest 5.59:1.
+   Both tints moved with the brands on 2026-09-18 and were re-measured on the
+   new grounds: Badger 6.88:1, Midwest 5.14:1. */
 .act-primary .act-s{color:var(--panel-hd-as)}
 .act-wide{margin-top:16px}
 .cbh{font-size:clamp(1.1rem,1.04rem + .38vw,1.28rem);margin-bottom:8px}
@@ -574,6 +612,18 @@ footer a[href^="tel:"]{display:inline-block;padding:10px 3px;margin:-10px 0}
    the sister-wordmark bug: the one element whose job is to tell the two
    apart, drawn in the colour they share.
 
+   AND ON 2026-09-18 IT WAS CLOSED, the same day it opened, which is the first
+   time in four. Both brands moved to the colours sampled out of the companies'
+   own marks -- #82313a here, #15662f there -- and the icons moved with them in
+   the same pass: 1007 / 846 / 5750 pixels on badgergrain and 791 / 846 / 5750
+   on midwestcommodity. Every accent pixel was solved as brand-over-neutral and
+   rebuilt against the new brand, so the antialiasing on the 180px file survived
+   and not one grey pixel moved. Pure old-brand pixels afterwards: zero, audited
+   twice. site.webmanifest's theme_color and og.png's stamp went with them.
+   The yellow keyline inside icon.png -- 180px, on neither other size -- is what
+   the 2026-08-20 pass left behind and is still there. It is not a brand value,
+   so nothing here knows what it should be.
+
    The rule was recoloured in place -- 811 pixels on this site, measured
    and blended against the same ground so the antialiasing is untouched --
    and icon-192 and icon-512 were redrawn at the SAME measured proportions
@@ -770,8 +820,8 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
    green had to be simulated against protanopia and deuteranopia before it
    could sit opposite Badger's barn red, because that pair is exactly the one
    red-green colour blindness collapses. A red "down" on a page whose brand IS
-   barn red #b8332a would also be a second red with a different meaning, six
-   inches from the first.
+   a red -- barn red then, the mark's maroon #82313a since 2026-09-18 -- would
+   also be a second red with a different meaning, six inches from the first.
 
    So the direction is carried by the WORD -- up, down, unchanged -- and by a
    triangle, which are two channels that survive any colour vision and any
@@ -838,7 +888,7 @@ header .wrap{padding-top:26px;padding-bottom:20px;gap:6px}
    wide, well under 34rem, so max-width does nothing — but the smaller type
    stops the label wrapping so hard and the bar drops from 103px to 86px.
 
-   Contrast is unchanged at 5.92:1: only the size moved, not the colours. An
+   Contrast is unchanged at 7.06:1: only the size moved, not the colours. An
    outline treatment was tried and rejected at 3.42:1 — it clears the 3.0
    large-text threshold and nothing else, and would fail the moment the type
    rendered below 18.66px. */
@@ -920,3 +970,140 @@ header{border-bottom:3px solid var(--ink)}
   font-weight:700;line-height:1.4;
   border-bottom:2px solid var(--ink);
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE COMPANIES' OWN LOGOS -- appended 2026-09-18.
+   ══════════════════════════════════════════════════════════════════════════
+   Kristi, controller for both elevators: "I think it would be best to keep our
+   old logo's so people recognize it better even though we do really like your
+   corns!" -- and, separately, "Don't forget to change the logo at the bottom of
+   each site that is a link to the other site."
+
+   So TWO elements change and nothing else does. The masthead <h1 class="logo">
+   and the "Our other location" card's <span class="logo sm"> each carry one
+   <img class="mark"> now, instead of four corn ears flanking the .wm/.wmrule
+   wordmark. Everywhere else the corn stays, on purpose: assets/icon.png,
+   icon-192, icon-512, og.png, the webmanifest and the favicon links were all
+   left alone, so the browser tab and the link preview are unchanged.
+
+   THE ARTWORK ARRIVED ON 2026-09-18, and what landed is:
+
+     assets/logo-badgergrain.png        1200 x 400  RGBA, transparent
+     assets/logo-midwestcommodity.png    832 x 400  RGBA, transparent
+
+   THOSE ARE A FLOOR, NOT A SHAPE. The rules below fit whatever arrives into a
+   fixed box with object-fit:contain, so any proportion works and nothing is
+   cropped or stretched. What the numbers are really specifying is resolution:
+   the masthead box is at most 430 x 118 CSS px, so anything under roughly
+   900 x 250 real pixels goes soft on a phone. Both sizes above clear 2x and
+   still clear 3x. assets/README.md says the same thing to whoever is drawing
+   them.
+
+   THE MIDWEST FILE IS 832 WIDE AND NOT THE 600 ASKED FOR, DELIBERATELY. Two
+   renders of that mark were offered. Both carry the same drawing; they differ
+   only in how much empty canvas is around it. The 600 x 400 one is canvas
+   aspect 1.50 with the mark itself only 600 x 288 inside it, aspect 2.08. The
+   masthead box is 430 x 118, aspect 3.64, so contain fits BOTH by height --
+   and the padded file spends 112 of its 400 rows on nothing. Measured in the
+   browser at 1280px rather than worked out on paper:
+
+     600 x 400 file: drawn 177.00 x 118, of which the mark is 177.0 x 85.0
+     832 x 400 file: drawn 245.44 x 118, of which the mark is 245.4 x 118.0
+
+   The mark comes out 38.7% larger from the 832 file, which is the 2.08/1.50
+   ratio exactly. Nothing is cropped either way -- the padded file is not
+   wrong, it is just smaller.
+
+   Badger's file has the same padding (1200 x 400 canvas, 762 x 400 of ink) and
+   it costs nothing, because 1.905 and 3.000 are both still under the box's
+   3.64 and so both fit by height to the same 118 rows. Measured: the mark
+   draws 224.8 x 118 from either render. That is why only the Midwest file
+   needed the tighter one.
+
+   UNTIL THEN THE ALT TEXT IS THE LOGO, and that is what the type below is for.
+   A broken <img> is drawn by the browser as its alt text in the element's OWN
+   font properties -- which by default is the page's body face at body size, or
+   a serif in an engine that does not inherit. Set here so the gap reads as
+   deliberate lettering in this site's display face rather than as damage.
+
+   THERE IS NO DARK RENDERING TO ANSWER, and that is worth writing down because
+   the markup said otherwise. The old lockup shipped `art-lit`/`art-rev` pairs
+   -- corn-left.png beside corn-left-reversed.png -- but the dark scheme was
+   removed on 2026-08-31 ("i also hate the dark background"), and the only rule
+   left is `.logo .ear.art-rev{display:none}`, unconditional, with nothing
+   anywhere that turns it back on. The reversed ears have not been drawn on
+   either site since. One file per company is therefore the whole requirement.
+   If a dark ground ever comes back, the two extra files to ask for are
+   assets/logo-badgergrain-reversed.png and assets/logo-midwestcommodity-reversed.png
+   at the same pixel sizes, with the maroon and the green lightened to hold
+   4.5:1 on the dark paper and the black and grey lettering set in paper white.
+   Do not invent them before there is a ground to put them on.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* THE BOX IS RESERVED IN CSS, IN BOTH AXES, AND THE ARTWORK IS FITTED INTO IT.
+   width and height are set here rather than left to the file's own proportions,
+   for two reasons. Nothing below the mark can move when it loads, whatever
+   shape arrives -- object-fit:contain scales it down inside the box and never
+   distorts or crops it. And the alt text, while there is no file, gets a box
+   big enough to be typeset in rather than one derived from artwork that is not
+   here. The width/height attributes in index.html are the shapes specified
+   above; if the delivered files are a different shape the page is still right,
+   and those two numbers are merely out of date. */
+.logo .mark{
+  display:block;position:relative;overflow:hidden;
+  width:clamp(210px,48vw,430px);max-width:100%;
+  height:clamp(64px,14vw,118px);
+  object-fit:contain;object-position:center;
+  /* the alt-text fallback, styled */
+  font-family:var(--display);font-weight:700;font-style:normal;
+  font-size:clamp(.85rem,2.6vw,1.3rem);text-transform:uppercase;letter-spacing:.02em;
+  line-height:1.1;text-align:center;color:var(--brand-txt);
+}
+
+/* THE GAP IS LETTERING, NOT DAMAGE.
+   Left to itself Chrome draws a broken-image glyph beside the alt text and
+   sets that text in a system face, ignoring the webfont the element asks for
+   -- so the masthead of a site whose artwork has not arrived reads as a fault
+   rather than as a name. An <img> that FAILED still paints ::before; an <img>
+   that SUCCEEDED is a replaced element and never does. So this covers the
+   glyph while the file is missing and takes itself away, with no script and no
+   second request, the moment the file is there.
+   Firefox and Safari do not paint ::before on an <img> at all. They draw the
+   UA's own alt text instead, which is the same words -- the fallback degrades
+   to the fallback. */
+.logo .mark::before{
+  content:attr(alt);
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:0 2px;background:var(--paper);
+  font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;
+  text-align:inherit;line-height:inherit;
+}
+
+/* THE CARD AT THE FOOT SHOWS THE OTHER ELEVATOR, IN THE OTHER ELEVATOR'S
+   COLOUR. This is the 2026-08-19 fault in its new form: the one element whose
+   whole job is to tell the two businesses apart used to be drawn in this
+   business's colour. The wordmark it was drawn with is gone, so the colour
+   moves with it, onto the mark that replaced it. --sister-brand is still the
+   other site's --brand and still must never equal this site's; colour.test.mjs
+   checks both halves.
+   The mark is flush left because it sits at the start of a flex row whose
+   other child is the sentence naming that elevator, and a centred mark would
+   float away from the words it belongs to. */
+.logo.sm .mark{
+  width:clamp(150px,34vw,210px);
+  height:clamp(54px,12vw,66px);
+  object-position:left center;
+  font-size:clamp(.62rem,1.7vw,.85rem);letter-spacing:.03em;
+  text-align:left;color:var(--sister-brand);
+}
+.logo.sm .mark::before{justify-content:flex-start;padding:0}
+
+/* SUPERSEDED, LEFT IN PLACE, NOT LIVE.
+   .wm / .wm1 / .wmrule / .wm2, .logo .ear and .logo:has(.wm) above no longer
+   match anything in index.html -- both lockups are a single <img class="mark">
+   now. They are kept because assets/corn-left.png and its three siblings are
+   still in the repository and the CSS lockup is the thing that draws them, so
+   a revert is one markup edit rather than a rebuild. Nothing new should be
+   hung on them. */

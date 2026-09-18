@@ -40,41 +40,36 @@ import { record, prune, EMPTY as HISTORY_EMPTY }
 
 /* ---- the decisions, all in one place ---------------------------------- */
 
-/* WHY THIS POINTS AT dnilgis/bids AND NOT AT emmertadmin -- 2026-09-14.
+/* WHY THIS POINTS AT emmertadmin AND NOT AT dnilgis/bids -- 2026-09-18.
  *
- * Both repositories read the SAME board, with the same reader, on the same
- * ten-minute cron. emmertadmin/test/fork.test.mjs asserts its output is "byte
- * for byte what dnilgis/bids produced" against three real captures, and the two
- * live files were compared field by field the day this changed: same top-level
- * keys, same bid-row keys, same source block. Only the `schema` string differs,
- * and nothing here reads it.
+ * The board belongs to this business, so the reader does too. `emmertadmin`
+ * reads one board with one HTTP request and now walks six routes to it;
+ * `dnilgis/bids` reads about 1,094 boards for somebody else's national feed and
+ * this elevator was one row inside a pass that takes seven minutes.
  *
- * WHAT DIFFERS IS DELIVERY. Counted on 2026-09-14, passes that actually landed:
+ * THIS WAS TRIED BEFORE AND REVERTED, AND THE REASON WAS REAL. On 2026-09-12
+ * the sites read emmertadmin; on 2026-09-14 they were pointed back at bids,
+ * because emmertadmin landed 5 passes that day against bids' 84 and the panel
+ * read "Call for today's price" three times on a Monday with a healthy board.
+ * Counted again on 2026-09-18 over 5.87 days, the problem was still there:
+ * 206 landed runs of 846 asked, 24.4%, with eight gaps past the four hours
+ * below and a worst of 6.20h. Inside the trading day it was worse, not better:
+ * 17 reads in 179 slots, 9.5%, median wait 97 minutes.
  *
- *     dnilgis/bids                   84
- *     midwestagsupply/emmertadmin     5
+ * WHAT CHANGED IS NOT THE READER, IT IS WHO RINGS THE BELL. Counted over the
+ * same week and the same slots, this repository was served 56.7% and so was
+ * midwestcommodity, against emmertadmin's 22.0% -- same account, same
+ * organisation, same six fires an hour. GitHub was dropping that repository's
+ * fires and not these. So both sites now poke emmertadmin's reader before they
+ * build (see prices.yml), which turns one ticket into three. Replayed against
+ * the real history: 206 reads becomes 683, the worst gap 6.20h becomes 4.01h,
+ * and time past the four-hour line inside market hours goes from 2.87h to none.
  *
- * Same cron -- "3,13,23,33,43,53 * * * *" -- in both. GitHub's scheduler is
- * best effort and it was dropping almost every fire in emmertadmin: 163 runs in
- * that repository's whole history, every one of them GREEN, because a dropped
- * fire produces no run at all. Nothing to go red, nothing to retry, nothing in
- * the run list to notice.
- *
- * The cost of that was on the customer's page. The sites withdraw when the
- * reader's last success is over FEED_MAX_AGE_H old, and the gaps between
- * emmertadmin's passes that day were 4h41m, 5h20m and 6h12m -- so the panel
- * read "Call for today's price" three separate times on a Monday with a healthy
- * board and a correct price sitting in the other repository the whole time.
- *
- * bids covers the full six passes an hour in ten of eighteen hours and never
- * drops below two. It is the same number from the same board; it is simply the
- * one that arrives.
- *
- * emmertadmin still reads, still publishes, and its watchdog still covers it.
- * This is about which clock the SITES trust, and they should trust the one that
- * ticks. */
+ * It needs the secret ADMIN_DISPATCH_TOKEN in this repository. Without it the
+ * poke is skipped with a clear message and emmertadmin is back on its own 22%,
+ * which is the state this comment exists to warn about. */
 const FEED_URL =
-  "https://raw.githubusercontent.com/dnilgis/bids/main/data/boyceville.json";
+  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/boyceville.json";
 
 /* THE FEED FILE'S OWN checkedAt IS NOT WHEN WE LAST CHECKED.
  *
@@ -96,7 +91,7 @@ const FEED_URL =
    keyed "boyceville" with its own checkedAt, which is exactly what
    checkedAtFrom() looks up. */
 const INDEX_URL =
-  "https://raw.githubusercontent.com/dnilgis/bids/main/data/index.json";
+  "https://raw.githubusercontent.com/midwestagsupply/emmertadmin/main/data/index.json";
 
 /* How cold `checkedAt` may get before we stop publishing.
  *
@@ -149,12 +144,37 @@ export const CONFIG = { FEED_URL, FEED_MAX_AGE_H, FLOOR, CEILING, HARVEST_MONTHS
    live in exactly one place or the staff screen and the public page will
    disagree by a cent and nobody will be able to say which is right.
 
-   Nearest cent, halves away from zero. NOT truncation: truncation always
-   rounds in the elevator's favour, which is a thumb on the scale even when
-   it is only ever worth half a cent. */
+   Nearest cent, halves away from zero. Every price we publish is positive,
+   so in practice that is: a half cent rounds up. NOT truncation: truncation
+   always rounds in the elevator's favour, which is a thumb on the scale even
+   when it is only ever worth half a cent.
+
+   THE RULE IS COUNTED IN WHOLE NUMBERS, BECAUSE THE FLOAT VERSION DID NOT KEEP IT.
+
+   This used to be `Math.sign(exact) * Math.round(Math.abs(exact) * 100) / 100`.
+   It states the rule and does not deliver it, because half a cent has no exact
+   binary representation. Whether a half landed above or below the line was an
+   accident of the bits, so the same rule gave two answers on the same board.
+
+   Kristi Helland found it on 2026-09-18. Dec 26 futures at 5.26 1/2 with our
+   basis 0.65 under is 4.615 exactly, and the page paid $4.61. The same futures
+   with basis 0.72 under is 4.545 exactly, and the page paid $4.55. One rounded
+   down and one rounded up. In JavaScript 5.265 - 0.65 is 4.614999999999999, so
+   times a hundred it is 461.49999999999994 and Math.round takes it DOWN, while
+   5.265 - 0.72 lands on 4.545, times a hundred is 454.5, and Math.round takes
+   it UP. Neither answer was a decision anyone made.
+
+   So count in hundredths of a cent instead. The feed's futures are whole
+   hundredths of a cent and the basis is typed in cents, so the exact value is
+   always a whole number of hundredths of a cent. One Math.round recovers that
+   integer with no dust left in it, and the half is then settled by adding 50
+   and taking the floor. That is arithmetic rather than luck: 4.615 is $4.62
+   every time, on every machine, in both directions of the sign. */
 export function payFrom(cash, spread) {
   const exact = cash - spread;
-  return Math.sign(exact) * Math.round(Math.abs(exact) * 100) / 100;
+  const q = Math.round(exact * 10000);   // hundredths of a cent; exact for quarter cents
+  const sign = q < 0 ? -1 : 1;
+  return sign * Math.floor((Math.abs(q) + 50) / 100) / 100;
 }
 
 /* OUR BASIS, NOT THEIRS.
@@ -189,10 +209,17 @@ export const basisFrom = (basis, spread) =>
  * Same rounding rule as payFrom, and for the same reason: nearest cent,
  * halves away from zero, never truncation, because truncation always rounds
  * in the elevator's favour. It is written out rather than shared so that
- * neither path can be changed without the other being looked at. */
+ * neither path can be changed without the other being looked at.
+ *
+ * That includes counting in hundredths of a cent rather than rounding a
+ * float, which is the whole of payFrom's long note above. This is the path
+ * the September and October prices came down, so it is the one that paid
+ * $4.61 on a 4.615. Read that note before touching either. */
 export function payFromBasis(futures, basis) {
   const exact = futures + basis;
-  return Math.sign(exact) * Math.round(Math.abs(exact) * 100) / 100;
+  const q = Math.round(exact * 10000);   // hundredths of a cent; exact for quarter cents
+  const sign = q < 0 ? -1 : 1;
+  return sign * Math.floor((Math.abs(q) + 50) / 100) / 100;
 }
 
 /* Which of the two figures a delivery month takes. Same buckets as

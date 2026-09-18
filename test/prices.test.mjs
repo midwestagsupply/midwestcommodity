@@ -79,6 +79,82 @@ test("a zero spread is allowed and changes nothing", () => {
   assert.equal(payFrom(4.115, 0), 4.12);
 });
 
+/* ---- half a cent -------------------------------------------------------
+ *
+ * Kristi Helland, 2026-09-18: "September 5.26 - .65 is 4.61 like what is
+ * displayed. October 5.26 - .72 is 4.54 not 4.55 ... I think it makes sense
+ * for it to round up when it is a half but mostly we want to be consistent."
+ *
+ * Both months quoted Dec 26 at 5.26 1/2, so the true values were 4.615 and
+ * 4.545. Both are exact halves of a cent and the two went opposite ways,
+ * because the rule was applied to a float. September paid a cent short.
+ *
+ * These are the cases that were not caught, so they are the ones pinned. */
+
+test("A HALF CENT ROUNDS UP, AND IT DOES IT THE SAME WAY EVERY TIME", () => {
+  /* The two figures off the live page, through the function that made them. */
+  assert.equal(payFromBasis(5.265, -0.65), 4.62, "was 4.61, a cent short");
+  assert.equal(payFromBasis(5.265, -0.72), 4.55);
+
+  /* And down the spread path, which does the same arithmetic backwards. */
+  assert.equal(payFrom(5.265, 0.65), 4.62);
+  assert.equal(payFrom(5.265, 0.72), 4.55);
+});
+
+test("EVERY QUARTER CENT AGAINST EVERY BASIS, not three hand-picked ones", () => {
+  /* The bug was one rule with two answers, so nothing short of a sweep finds
+     it: 4.545 was right and 4.615 was wrong under the same line of code.
+
+     The expected figure is built here in whole hundredths of a cent, from the
+     integers the inputs actually are, so it owes nothing to the module's own
+     arithmetic. A second copy of payFrom would only agree with itself. */
+  const want = (hundredths) => {
+    const sign = hundredths < 0 ? -1 : 1;
+    return sign * Math.floor((Math.abs(hundredths) + 50) / 100) / 100;
+  };
+
+  let checked = 0;
+  for (let fq = 30000; fq <= 70000; fq += 25) {          // futures, quarter cents
+    for (let bq = -15000; bq <= 1500; bq += 100) {       // basis, whole cents
+      const futures = fq / 10000, basis = bq / 10000;
+      const expected = want(fq + bq);
+
+      assert.equal(payFromBasis(futures, basis), expected,
+        `futures ${futures} basis ${basis}: want ${expected}`);
+      assert.equal(payFrom(futures, -basis), expected,
+        `cash ${futures} spread ${-basis}: want ${expected}`);
+      checked += 2;
+    }
+  }
+  assert.ok(checked > 100000, `only ${checked} combinations swept`);
+});
+
+test("...and the sweep would have failed on the old float rule", () => {
+  /* Guarding the guard. If the sweep above can pass while the arithmetic is
+     done on a float, it is not testing what its name says. This is the line
+     that shipped, and it has to disagree with the rule somewhere. */
+  const float = (exact) => Math.sign(exact) * Math.round(Math.abs(exact) * 100) / 100;
+  assert.equal(float(5.265 - 0.65), 4.61, "the old rule on the September figure");
+  assert.notEqual(float(5.265 - 0.65), payFrom(5.265, 0.65));
+});
+
+test("HALF AWAY FROM ZERO ON A NEGATIVE TOO, rather than assumed", () => {
+  /* A published price is never negative, but the sign branch exists and an
+     untested branch is a branch that drifts. Away from zero means a negative
+     half goes further down, not up toward it: -4.615 is -4.62, not -4.61. */
+  assert.equal(payFromBasis(0.65, -5.265), -4.62);
+  assert.equal(payFromBasis(0.72, -5.265), -4.55);
+  assert.equal(payFrom(0.65, 5.265), -4.62);
+  assert.equal(payFrom(0.72, 5.265), -4.55);
+
+  /* The pair either side of zero must be mirrors, or the rule has a seam
+     in it at the sign. */
+  for (let q = 25; q <= 2000; q += 25) {
+    const v = q / 10000;
+    assert.equal(payFrom(0, v), -payFrom(v, 0), `no seam at zero for ${v}`);
+  }
+});
+
 test("basis is written the way it is said", () => {
   assert.equal(basisText(-0.52), "−0.52");
   assert.equal(basisText(0.06), "+0.06");

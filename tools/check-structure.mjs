@@ -38,9 +38,48 @@ for (const e of readdirSync(".")) {
     );
 }
 
+/* ARTWORK THE OWNER STILL OWES, AND THE ONLY REASON THIS LIST EXISTS.
+ *
+ * Rule 3 below refuses to let index.html name a file that is not here, and it
+ * is right to: a missing stylesheet, font, icon or manifest is invisible in
+ * the repository browser and broken on the domain, which is the whole reason
+ * this script was written.
+ *
+ * A missing LOGO is a different failure and behaves differently. The mark in
+ * the masthead and the mark on the "Our other location" card are <img>
+ * elements carrying the company name as alt text, so while the file is absent
+ * the page still says whose elevator it is, in the site's own display face,
+ * and the moment the file is uploaded the mark appears with no edit anywhere.
+ * That is the state these two sites ship in on 2026-09-18 while Kristi sends
+ * the artwork, and calling it a broken repository would mean this checker
+ * printing "Do not push yet" on a repository that is correct -- which is the
+ * exact failure mode section 5 further down was rewritten to end.
+ *
+ * SO IT IS REPORTED, LOUDLY, AND IT DOES NOT SET THE EXIT CODE. The list is
+ * closed, it is two entries, and it is meant to be DELETED when the files
+ * land: anything not named here that index.html asks for and cannot find is
+ * still a hard problem, and so is one of these two if the reference ever loses
+ * its alt text, because then the page really does go blank where the name
+ * should be. Both of those are covered in test/structure.test.mjs.
+ */
+const AWAITED = new Map([
+  ["assets/logo-badgergrain.png",     "the Badger Grain Supply mark"],
+  ["assets/logo-midwestcommodity.png", "the Midwest Commodity Service mark"],
+]);
+const awaited = [];
+
 // 3. Nothing may reach outside the repository root.
 if (existsSync("index.html")) {
   const html = readFileSync("index.html", "utf8");
+  /* Which sources are an <img> with real alt text on it -- the only shape in
+     which a missing file still leaves the page readable. Read off the tag, so
+     deleting the alt attribute cannot quietly buy the exemption. */
+  const withAlt = new Set();
+  for (const tag of html.match(/<img\b[^>]*>/g) ?? []) {
+    const src = /\ssrc="([^"]+)"/.exec(tag);
+    const alt = /\salt="([^"]*)"/.exec(tag);
+    if (src && alt && alt[1].trim()) withAlt.add(src[1].split(/[?#]/)[0]);
+  }
   for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
     const u = m[1];
     if (u.startsWith("../"))
@@ -48,7 +87,13 @@ if (existsSync("index.html")) {
     if (/^(https?:)?\/\//.test(u) || u.startsWith("#") || u.startsWith("data:") ||
         u.startsWith("mailto:") || u.startsWith("tel:") || u.startsWith("sms:")) continue;
     const path = u.split(/[?#]/)[0];
-    if (path && !existsSync(path)) problems.push(`BROKEN LINK: index.html asks for ${path}, which is not here`);
+    if (path && !existsSync(path)) {
+      if (AWAITED.has(path) && withAlt.has(path))
+        awaited.push(`${path} — ${AWAITED.get(path)}. Not delivered yet; until it is, ` +
+                     `the page draws its alt text instead. Upload it and this line goes away.`);
+      else
+        problems.push(`BROKEN LINK: index.html asks for ${path}, which is not here`);
+    }
   }
   // 4. CNAME must match what the page says about itself.
   if (existsSync("CNAME")) {
@@ -134,6 +179,14 @@ if (existsSync("index.html")) {
 
 console.log("\nFound:");
 for (const n of notes) console.log("  " + n);
+
+/* Printed even on a clean run, and printed BEFORE the verdict, because the
+   point of it is that somebody reads it. It is not a problem and does not
+   change the exit code; it is a thing the site is still owed. */
+if (awaited.length) {
+  console.log("\nAwaiting artwork (not a problem, and not the exit code):");
+  for (const a of awaited) console.log("  " + a);
+}
 
 if (problems.length) {
   console.log("\nProblems:");

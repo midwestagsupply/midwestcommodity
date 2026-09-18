@@ -6,7 +6,7 @@
 <title>Midwest Commodity Service | Baldwin, WI</title>
 <link rel="stylesheet" href="site.css">
 <meta name="description" content="Midwest Commodity Service buys, dries and stores corn in Baldwin, Wisconsin. Today&rsquo;s prices, hours and the drying schedule. Call (715) 704-0548.">
-<meta name="theme-color" content="#1c5f52">
+<meta name="theme-color" content="#15662f">
 <link rel="canonical" href="https://midwestcommodity.com/">
 <link rel="apple-touch-icon" href="assets/icon.png">
 <meta property="og:type" content="website">
@@ -38,10 +38,29 @@
 <header>
   <div class="wrap">
     <h1 class="logo">
-      <img class="ear l art-lit" src="assets/corn-left.png" alt="" aria-hidden="true"><img class="ear l art-rev" src="assets/corn-left-reversed.png" alt="" aria-hidden="true">
-      <span class="wm" aria-hidden="true"><span class="wm1">Midwest</span><span class="wmrule"></span><span class="wm2">Commodity Service</span></span>
-      <img class="ear r art-lit" src="assets/corn-right.png" alt="" aria-hidden="true"><img class="ear r art-rev" src="assets/corn-right-reversed.png" alt="" aria-hidden="true">
-      <span class="sr-only">Midwest Commodity Service, Inc.</span>
+      <!-- THE MARK IS A FILE, NOT A LOCKUP BUILT IN CSS. Kristi asked for the
+           companies' own logos back ("keep our old logo's so people recognize it
+           better"), so the four corn ears and the .wm wordmark that stood here are
+           gone from this element. Everywhere else on this site the corn stays --
+           the app icons, the favicon and the link-preview card are deliberately
+           untouched.
+
+           THE ARTWORK LANDED ON 2026-09-18. It was rebuilt as vector from the only
+           reference there was -- a 205x98 crop of a screenshot -- because nothing
+           that small survives being stretched to a 430px masthead. If the original
+           files ever turn up, replacing the PNG is the whole job.
+
+           IF THE FILE IS EVER MISSING the browser draws the alt text instead, which
+           is the company's name in this site's own display face (see .logo .mark in
+           site.css). That is why the alt text is a real name and not decoration.
+
+           THE BOX IS RESERVED IN CSS, in both axes, so nothing below the masthead
+           moves when the file loads and any shape fits without being cropped or
+           stretched. The width and height below are MEASURED off the delivered
+           file, not asked for -- they were 600x400 from assets/README.md until
+           2026-09-18, when the file turned out to be 832x400 and the browser was
+           reserving a box a third too narrow. -->
+      <img class="mark" src="assets/logo-midwestcommodity.png" width="832" height="400" alt="Midwest Commodity Service, Inc.">
     </h1>
     <p class="tag">Grain buying, drying and storage<span class="town">Baldwin, Wisconsin</span></p>
   </div>
@@ -63,7 +82,7 @@
 
     <div class="pricecol" id="prices">
       <div class="panel">
-      <div class="hd">Prices paid today<span class="as">as of Friday, September 18, 5:57pm</span></div>
+      <div class="hd">Prices paid today<span class="as">as of Friday, September 18, 3:51pm</span></div>
       <table class="bids">
         <caption class="sr-only">Cash corn bids by delivery month</caption>
         <thead>
@@ -81,9 +100,9 @@
     </div>
 
     <div class="panel hourspanel">
-      <div class="today is-shut">
-        <div class="today-lbl">Closed for the day</div>
-        <div class="today-hrs num">Monday 8:00a</div>
+      <div class="today">
+        <div class="today-lbl">Open today, Friday</div>
+        <div class="today-hrs num">8:00a to 4:30p</div>
       </div>
       <div class="hrow"><span>Mon to Fri</span><span class="num">8:00a to 4:30p</span></div>
       <div class="hrow"><span>Saturday</span><span>Closed</span></div>
@@ -327,9 +346,13 @@
     <p class="sister-l">Our other location</p>
     <a class="sister-a" href="https://badgergrain.com/">
       <span class="logo sm">
-        <img class="ear l art-lit" src="assets/corn-left.png" alt="" aria-hidden="true"><img class="ear l art-rev" src="assets/corn-left-reversed.png" alt="" aria-hidden="true">
-        <span class="wm" aria-hidden="true"><span class="wm1">Badger</span><span class="wmrule"></span><span class="wm2">Grain Supply</span></span>
-        <img class="ear r art-lit" src="assets/corn-right.png" alt="" aria-hidden="true"><img class="ear r art-rev" src="assets/corn-right-reversed.png" alt="" aria-hidden="true">
+        <!-- THE OTHER ELEVATOR'S OWN MARK, not this one's, and not a wordmark
+             built in CSS any more. aria-hidden because the sentence to its right
+             already names that company: without it a screen reader reads the name
+             twice before it gets to the town. The alt text is still there and is
+             still what a browser draws while the artwork is missing -- aria-hidden
+             takes the element out of the accessibility tree, not off the page. -->
+        <img class="mark" src="assets/logo-badgergrain.png" width="1200" height="400" alt="Badger Grain Supply, LLC" aria-hidden="true">
       </span>
       <span class="sister-t"><strong>Badger Grain Supply, LLC</strong>Wheeler, Wisconsin. Same drying and discount schedule, same terms.</span>
     </a>
@@ -526,7 +549,7 @@
 <!-- /TODAY:js -->
 
 <!-- PRICE:meta -->
-<script type="application/json" id="price-meta">{"builtFrom":"2026-09-18T22:57:38.724Z"}</script>
+<script type="application/json" id="price-meta">{"builtFrom":"2026-09-18T20:51:03.182Z"}</script>
 <!-- /PRICE:meta -->
 <!-- PRICE:stale -->
 <script>

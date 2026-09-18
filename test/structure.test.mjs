@@ -158,6 +158,89 @@ test("the checks that were already there still fire", () => {
   assert.match(r.out, /NESTED: there is a complete site inside badgergrain-com\//);
 });
 
+/* ── THE LOGO THE OWNER HAS NOT SENT YET ───────────────────────────────────
+ *
+ * On 2026-09-18 both mastheads and both "Our other location" cards stopped
+ * being a CSS lockup and became one <img class="mark"> apiece, pointing at
+ * assets/logo-badgergrain.png and assets/logo-midwestcommodity.png. Kristi is
+ * sending the artwork; the slot shipped first so that uploading the two files
+ * is the whole of the remaining work.
+ *
+ * That put rule 3 -- every src/href in the page must exist -- in direct
+ * conflict with the shipped state of the repository, and the wrong way out of
+ * that conflict is to soften rule 3. These four cases are the fence around the
+ * narrow exemption that was added instead: it names exactly two paths, it only
+ * applies while the reference still carries the company name as alt text, it
+ * never touches the exit code, and it disappears by itself the moment the file
+ * is there. Everything else that is missing is still "Do not push yet".
+ */
+const MARKS = ["assets/logo-badgergrain.png", "assets/logo-midwestcommodity.png"];
+
+test("ARTWORK THAT HAS NOT ARRIVED IS REPORTED, AND IS NOT A PROBLEM", () => {
+  /* THE MARKS LANDED ON 2026-09-18 AND THIS TEST OUTLIVED THEM. It used to
+     read the waiting state straight off the repository, so delivering the
+     artwork turned it red -- a test failing because the thing it was waiting
+     for arrived. The waiting state is still worth guarding, because the next
+     mark that is commissioned will pass through it, so the state is now made
+     on purpose in the scratch copy instead of borrowed from the repository. */
+  const d = scratch();
+  for (const m of MARKS) rmSync(join(d, m), { force: true });
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Awaiting artwork/, "the checker says nothing about the missing marks");
+  for (const m of MARKS)
+    assert.ok(r.out.includes(m), `the checker did not name ${m} as awaited`);
+  assert.doesNotMatch(r.out, /BROKEN LINK: index\.html asks for assets\/logo-/,
+    "an awaited mark was reported as a broken link");
+});
+
+test("and the line goes away by itself once the file is there", () => {
+  /* The exemption must be self-deleting. If it were not, it would go on
+     reporting artwork as outstanding after it had been delivered, and the next
+     person would learn to skip that section. */
+  const d = scratch();
+  for (const m of MARKS) writeFileSync(join(d, m), "not really a png, but it exists");
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /Awaiting artwork/,
+    "the marks are in the repository and the checker still says it is waiting for them");
+});
+
+test("A MISSING FILE THAT IS NOT ON THAT LIST IS STILL A HARD PROBLEM", () => {
+  /* The exemption is two paths long and must not have widened into "images are
+     allowed to be missing". site.webmanifest is the file that joined rule 3's
+     coverage last, so it is the one to prove with. */
+  const d = scratch();
+  rmSync(join(d, "site.webmanifest"));
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /BROKEN LINK: index\.html asks for site\.webmanifest/);
+});
+
+test("an awaited mark WITHOUT alt text is a broken link again", () => {
+  /* The alt text is the entire reason a missing mark is survivable: it is what
+     the browser draws in the file's place, so the page still names the
+     business. Strip it and the masthead is an empty box, which is not a state
+     to wave through. */
+  const d = scratch();
+  /* Same reason as the awaited-artwork test above: this case is about a mark
+     that is NOT in the repository, so the scratch copy has to be put back into
+     that state now that the real files are there. */
+  for (const m of MARKS) rmSync(join(d, m), { force: true });
+  const p = join(d, "index.html");
+  const html = readFileSync(p, "utf8");
+  const stripped = html.replace(/(<img class="mark"[^>]*?)\s+alt="[^"]*"/g, "$1");
+  assert.notEqual(stripped, html, "the fixture page has no <img class=\"mark\"> to strip");
+  writeFileSync(p, stripped);
+  const r = run(d);
+  rmSync(d, { recursive: true, force: true });
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /BROKEN LINK: index\.html asks for assets\/logo-/);
+});
+
 test("a missing file Pages needs is still a problem", () => {
   const d = scratch();
   rmSync(join(d, ".nojekyll"));

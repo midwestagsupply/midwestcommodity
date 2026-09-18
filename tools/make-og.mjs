@@ -119,8 +119,12 @@ export function card(f, embedded = "", brand) {
         background:repeating-linear-gradient(#b9b099 0 9px,transparent 9px 18px)}
   .hd{display:flex;justify-content:space-between;align-items:flex-start;
       border-bottom:3px double #2b2721;padding-bottom:14px}
-  /* The masthead face, at the masthead's own settings. The company name on
-     the card and the company name on the site are now the same object. */
+  /* The site's own Wordmark face, at the settings the masthead used to carry.
+     That masthead is now the company's logo PNG, so this is no longer the same
+     object the page draws, and saying otherwise would send the next person
+     looking for a wordmark that is gone. The ticket keeps type on purpose: a
+     scale ticket is typed, not branded, and the name here is still read off
+     the page rather than pulled from an image nobody can diff. */
   .co{font-family:"Wordmark","Inter",sans-serif;font-size:40px;font-weight:700;letter-spacing:.005em}
   .ad{font-size:16px;letter-spacing:.01em;margin-top:8px;color:#5b5648;font-weight:500}
   .no{text-align:right;font-size:12px;font-weight:700;letter-spacing:.18em;line-height:1.9;color:#6d6759}
