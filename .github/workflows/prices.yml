@@ -7,6 +7,27 @@
 #
 # Nothing here scrapes anything. If the reader has stopped, this takes the
 # price off the page rather than leaving yesterday's number up.
+#
+# AND SINCE 2026-09-18 IT ALSO STARTS THE READER, which is the more important
+# of the two things it does.
+#
+# GitHub drops scheduled fires per repository, not per account. Measured over
+# the 845 ten-minute slots from 2026-09-12 17:58Z to 2026-09-18 14:54Z, off the
+# commits each repository makes on essentially every run:
+#
+#     midwestagsupply/emmertadmin       186 slots   22.0%
+#     midwestagsupply/badgergrain       479 slots   56.7%
+#     midwestagsupply/midwestcommodity  479 slots   56.7%
+#
+# Same organisation, same account, the same six fires an hour, the same week,
+# and this repository was served two and a half times better than the one that
+# reads the board. Inside the trading day the difference is worse still:
+# emmertadmin held a read in 17 of the 179 slots between 8am and 3pm Central on
+# a weekday. 9.5%.
+#
+# So the schedule this repository is GIVEN is worth more than the page it
+# renders, and the first step of the job spends it on starting emmertadmin's
+# reader. See "Start the reader" below, and the loop it is carefully not.
 
 name: Prices
 
@@ -45,6 +66,65 @@ on:
     # fires measured across the bids repository, 17.4%. That is why this is the
     # fallback and the dispatch below is the mechanism.
     - cron: "7,17,27,37,47,57 * * * *"
+
+    # AND A SECOND SET OF MINUTES THROUGH THE TRADING DAY ONLY, 2026-09-18.
+    #
+    # Sig asked for the tightest cadence between 8am and 3pm Central on a
+    # weekday. This is the repository to ask it of: it converts an asked fire
+    # into a run 52% of the time and emmertadmin manages 22%, so an extra ask
+    # placed here is worth more than twice one placed there.
+    #
+    # WHAT IS AND IS NOT KNOWN ABOUT THAT. The landings are spread evenly
+    # across the six minutes already asked for -- 47 to 63 landings each, out
+    # of 141 asks each, over the measured week -- so there is no sign of a
+    # per-hour cap being shared out among minutes, which is what would make
+    # extra minutes worthless. That is consistent with extra asks producing
+    # extra runs and it is NOT a measurement of it. The marginal delivery of
+    # these six minutes is unmeasured and lies somewhere between nothing and
+    # 52%. It is one line and deleting it costs nothing.
+    #
+    # WHAT IT IS NOT: it is not a longer job. dnilgis/bids lost two thirds of
+    # its coverage on 2026-08-27 by holding one runner for fifty minutes of
+    # every sixty, which looks to Actions like a persistent server. A run of
+    # this file takes about forty seconds and this changes nothing about that.
+    #
+    # ── THE UTC HOURS, COMPUTED ON BOTH SIDES OF THE CLOCK CHANGE ──────────
+    #
+    # Cron is UTC and has no idea what Central is. Central is UTC-5 from the
+    # second Sunday in March to the first Sunday in November and UTC-6 the rest
+    # of the year -- in 2026, 8 March and 1 November. 8am to 3pm Central is
+    # therefore 13:00-20:00 UTC in summer and 14:00-21:00 UTC in winter, and no
+    # single set of UTC hours is exactly right all year.
+    #
+    # Hours 13-20 are the UNION, so the window is always covered and one hour
+    # is always spent outside it. Fire times were computed, not read by eye:
+    #
+    #     Fri 2026-10-30  (CDT)  first 08:02 Central   last 15:52 Central
+    #     Mon 2026-11-02  (CST)  first 07:02 Central   last 14:52 Central
+    #     Thu 2026-03-05  (CST)  first 07:02 Central   last 14:52 Central
+    #     Mon 2026-03-09  (CDT)  first 08:02 Central   last 15:52 Central
+    #
+    # In summer the spare hour falls after the close, in winter before the
+    # open, and 8:00 to 15:00 Central is inside every one of them. Across the
+    # two changeover weeks, 240 fires, 210 inside the window, 0 at a weekend.
+    #
+    # THE ALTERNATIVE WAS A STEP THAT CHECKS TZ=America/Chicago AND EXITS.
+    # Rejected: a fire that arrives and exits has already spent the fire, and
+    # the fires are the scarce thing here. An hour of extra asks a day is the
+    # cheaper mistake than a step that throws away a landed run.
+    #
+    # DAY-OF-WEEK IS 1-5 AND THAT IS CORRECT FOR GITHUB, which numbers Sunday
+    # 0. It is not correct for every scheduler -- Cloudflare's field is 1-7 and
+    # rejects 0 -- so if these minutes are ever copied anywhere else, check the
+    # numbering there rather than assuming it matches. Between 13:00 and 20:59
+    # UTC the Central date is the same calendar day as the UTC date in both
+    # offsets, so there is no day to wrap and 1-5 really is Monday to Friday
+    # in Central. That was computed too.
+    #
+    # Minutes at :02 and every ten, five clear of the :07 set above, so the two
+    # crons interleave to an ask every five minutes rather than doubling up on
+    # the same minute.
+    - cron: "2,12,22,32,42,52 13-20 * * 1-5"
   # THE FEED TELLS US, INSTEAD OF US ASKING SIX TIMES AN HOUR AND HOPING.
   #
   # emmertadmin fires this the moment Bids' price actually moves, so the
@@ -98,6 +178,93 @@ jobs:
     # where the box sat closed all morning with a green tick on every run.
     timeout-minutes: 5
     steps:
+      # ══════════════════════════════════════════════════════════════════
+      #  START THE READER. FIRST STEP, BEFORE THE CHECKOUT, ON PURPOSE.
+      # ══════════════════════════════════════════════════════════════════
+      #
+      # It needs no checkout, no node and no tests, so it happens before any of
+      # them can fail. A broken build in THIS repository must not be the reason
+      # the board went unread for four hours, because the board is what the
+      # other repository's four-hour withdrawal clock is measured against.
+      #
+      # ── THE LOOP THIS IS NOT ────────────────────────────────────────────
+      #
+      # `github.event_name == 'schedule'` is load-bearing and is not a tidiness
+      # check. emmertadmin dispatches `price-moved` back here when the price
+      # moves, which starts this workflow with event_name repository_dispatch.
+      # If that run also poked the reader, then: poke -> read -> price-moved ->
+      # poke -> read, with no upper bound, in three repositories at once, until
+      # somebody noticed. That is also precisely the persistent-runner shape
+      # that cost dnilgis/bids two thirds of its coverage on 2026-08-27.
+      #
+      # So the poke happens only on the two events a HUMAN or a CLOCK starts:
+      # the schedule, and the Run workflow button. A dispatch never pokes back.
+      # test/mirror.test.mjs in emmertadmin fails if this condition is widened.
+      #
+      # ── TWO DOORS, BECAUSE A TOKEN SCOPE IS NOT A TOKEN ─────────────────
+      #
+      # workflow_dispatch needs a fine-grained token with Actions: read and
+      # write on midwestagsupply/emmertadmin. repository_dispatch needs
+      # Contents: read and write. There is no way from here to know which the
+      # owner granted, and the failure looks identical -- 403 or 404 -- so it
+      # tries the first and falls through to the second. Sig asked for a second
+      # way to arrive at the same value; at this layer this is it.
+      #
+      # ── AND IT IS OPTIONAL, LIKE EVERY OTHER TOKEN IN THESE REPOSITORIES ─
+      #
+      # No ADMIN_DISPATCH_TOKEN and it says so and carries on. emmertadmin
+      # keeps its own cron and its own watchdog, so a missing secret makes the
+      # price slower, never wrong, and never stops this page rendering.
+      #
+      # To enable: Settings -> Secrets and variables -> Actions -> New
+      # repository secret, named ADMIN_DISPATCH_TOKEN, a fine-grained token on
+      # midwestagsupply/emmertadmin with EITHER Actions: read and write OR
+      # Contents: read and write, plus Metadata: read.
+      - name: Start the reader
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          TOK: ${{ secrets.ADMIN_DISPATCH_TOKEN }}
+        # A BLOCK SCALAR. See the note on the step below for the seventeen
+        # hours that taught this repository why.
+        run: |
+          if [ -z "${TOK:-}" ]; then
+            echo "no ADMIN_DISPATCH_TOKEN here, so emmertadmin is running on its own"
+            echo "schedule alone. That schedule delivered 22.0% of its asked fires over"
+            echo "the six days to 2026-09-18. Nothing is broken and nothing is wrong on"
+            echo "the page; the price is simply as fresh as that schedule manages."
+            exit 0
+          fi
+          API="https://api.github.com/repos/midwestagsupply/emmertadmin"
+          AUTH="Authorization: Bearer $TOK"
+          ACC="Accept: application/vnd.github+json"
+          VER="X-GitHub-Api-Version: 2022-11-28"
+          # Content-Type SAID OUT LOUD. Both bodies below are JSON, and curl's
+          # -d announces form encoding unless told otherwise. The API is
+          # entitled to answer 415 to that, and a 415 here would read as a
+          # token problem and send somebody to regenerate a token that was
+          # fine. One header is cheaper than that afternoon.
+          CT="Content-Type: application/json"
+          # --max-time on both, because curl has no deadline of its own and a
+          # hung api.github.com would otherwise sit here until the step ceiling.
+          one=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST \
+            -H "$AUTH" -H "$ACC" -H "$VER" -H "$CT" \
+            "$API/actions/workflows/read.yml/dispatches" \
+            -d '{"ref":"main"}') || one=000
+          echo "  workflow_dispatch  -> HTTP $one"
+          if [ "$one" = "204" ]; then exit 0; fi
+          BODY=$(printf '{"event_type":"read-now","client_payload":{"from":"%s"}}' "$GITHUB_REPOSITORY")
+          two=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST \
+            -H "$AUTH" -H "$ACC" -H "$VER" -H "$CT" \
+            "$API/dispatches" -d "$BODY") || two=000
+          echo "  repository_dispatch -> HTTP $two"
+          if [ "$two" = "204" ]; then exit 0; fi
+          echo "::warning::could not start the reader (HTTP $one then $two). Its own"
+          echo "cron and its watchdog still run, so this is late prices and not wrong"
+          echo "ones. 404 or 403 from both doors means the token lacks Actions write"
+          echo "and Contents write on emmertadmin, or has lapsed."
+
       # WHY THIS RUN HAPPENED, when it was the feed that asked for it.
       #
       # THE PAYLOAD GOES THROUGH env AND NOT INTO THE SCRIPT. A
