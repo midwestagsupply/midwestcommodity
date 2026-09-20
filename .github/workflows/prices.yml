@@ -279,6 +279,7 @@ jobs:
         env:
           FROM: ${{ github.event.client_payload.from }}
           SOURCE: ${{ github.event.client_payload.source }}
+          REASON: ${{ github.event.client_payload.reason }}
           PRICED_AT: ${{ github.event.client_payload.pricedAt }}
           THEIR_RUN: ${{ github.event.client_payload.run }}
         # A BLOCK SCALAR, and not because it is prettier.
@@ -294,7 +295,19 @@ jobs:
         #
         # `run: |` hands the rest to the shell verbatim and YAML stops reading.
         run: |
-          echo "dispatched by $FROM: $SOURCE moved, pricedAt $PRICED_AT (their run $THEIR_RUN)"
+          # WHY THIS RUN HAPPENED IS NOT ALWAYS "THE PRICE MOVED".
+          #
+          # The reader's stamp is the time of the last CHECK, not the last
+          # move, so emmertadmin now also dispatches after a pass where
+          # nothing moved, when this page's stamp has gone stale. Older
+          # payloads carry no reason; those are moves.
+          case "${REASON:-moved}" in
+            checked) WHY="nothing moved, this page's stamp had gone stale" ;;
+            cold)    WHY="no reading had landed in a while" ;;
+            moved)   WHY="the price moved" ;;
+            *)       WHY="reason $REASON" ;;
+          esac
+          echo "dispatched by $FROM: $SOURCE, $WHY, pricedAt $PRICED_AT (their run $THEIR_RUN)"
 
       # CHECK OUT THE BRANCH TIP, NOT THE SHA THIS RUN WAS QUEUED AT.
       #
