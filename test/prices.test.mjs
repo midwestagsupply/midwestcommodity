@@ -1490,3 +1490,114 @@ test("...and the small print obeys the house rules for reader-facing copy", () =
   assert.doesNotMatch(note, /soy/i, "these sites price corn only");
   assert.doesNotMatch(note, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, "no emoji");
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   READ THE COMMIT, NOT THE BRANCH -- AND NEVER GO BACKWARDS
+   ══════════════════════════════════════════════════════════════════════════
+   2026-09-21 14:13Z, off both sites' own commits: midwestcommodity published
+   the 9:13am read and then, three minutes later, went BACK to 5:56am;
+   badgergrain never got the 9:13am read at all. raw.githubusercontent.com
+   caches a branch URL for five minutes, so a build could be handed the read
+   before the one that had just landed. */
+
+test("the feed and the directory are read at one commit when the commit is known", async () => {
+  const { pinned, CONFIG } = await import("../tools/update-prices.mjs");
+  const sha = "4192227154178a27772a1c60db0b70fc20117672";
+  assert.equal(pinned(CONFIG.FEED_URL, sha),
+    `https://raw.githubusercontent.com/midwestagsupply/emmertadmin/${sha}/data/boyceville.json`);
+  /* Anything that is not a full SHA leaves the branch URL alone, so a garbled
+     answer from git can never produce a URL that 404s and withdraws the price. */
+  for (const bad of [null, "", "main", "4192227", "not-a-sha".padEnd(40, "x")])
+    assert.equal(pinned(CONFIG.FEED_URL, bad), CONFIG.FEED_URL, `pinned to ${JSON.stringify(bad)}`);
+});
+
+test("git ls-remote is parsed for the tip of main, and a failure is a null, not a throw", async () => {
+  const { lsRemoteSha } = await import("../tools/update-prices.mjs");
+  const sha = "4192227154178a27772a1c60db0b70fc20117672";
+  assert.equal(lsRemoteSha({ exec: () => `${sha}\trefs/heads/main\n` }), sha);
+  assert.equal(lsRemoteSha({ exec: () => "" }), null, "empty answer");
+  assert.equal(lsRemoteSha({ exec: () => "garbage\n" }), null, "unparseable answer");
+  assert.equal(lsRemoteSha({ exec: () => { throw new Error("network"); } }), null, "git failed");
+});
+
+/* A site directory with a page already built from `observed`, then one run of
+   main() against a feed stamped `feedAt`. Returns what the page says after. */
+async function buildOver({ observed, status = "ok", feedAt, now, sha = null }) {
+  const { main } = await import("../tools/update-prices.mjs");
+  const { mkdtempSync, writeFileSync, readFileSync: rf } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "back-"));
+  writeFileSync(join(dir, "pricing.json"), JSON.stringify({ spread: 0.10, spread_harvest: 0.00, contact: "x" }));
+  writeFileSync(join(dir, "index.html"), PAGE);
+  if (observed) writeFileSync(join(dir, "bids.json"),
+    JSON.stringify({ schema: "emmert-cash-bids/2", observed, status, bids: [] }));
+  const feed = JSON.stringify({ ...LIVE, pricedAt: feedAt, checkedAt: feedAt });
+  const asked = [];
+  const fetchImpl = async (url) => {
+    asked.push(url);
+    return url.includes("index.json")
+      ? { ok: true, status: 200, text: async () => JSON.stringify({ sources: [{ id: "boyceville", checkedAt: feedAt }] }) }
+      : { ok: true, status: 200, text: async () => feed };
+  };
+  const cwd = process.cwd();
+  try {
+    process.chdir(dir);
+    const r = await main({ fetchImpl, now: new Date(now), resolveSha: async () => sha });
+    return { r, page: rf(join(dir, "index.html"), "utf8"), asked,
+             bids: (() => { try { return JSON.parse(rf(join(dir, "bids.json"), "utf8")); } catch { return null; } })() };
+  } finally { process.chdir(cwd); }
+}
+
+test("A BUILD HANDED AN OLDER READ THAN THE PAGE LEAVES THE PAGE ALONE", async () => {
+  /* The 14:16:49Z case: page says 14:13:11, the cached copy says 10:56:52. */
+  const { r, bids } = await buildOver({
+    observed: "2026-09-21T14:13:11.038Z", feedAt: "2026-09-21T10:56:52.436Z",
+    now: "2026-09-21T14:16:49Z" });
+  assert.equal(r.skipped, "older-than-page", "the build went ahead with an older read");
+  assert.equal(bids.observed, "2026-09-21T14:13:11.038Z", "bids.json was rewritten backwards");
+});
+
+test("a NEWER read than the page is published as normal", async () => {
+  const { r, page, bids } = await buildOver({
+    observed: "2026-09-21T10:56:52.436Z", feedAt: "2026-09-21T14:13:11.038Z",
+    now: "2026-09-21T14:13:31Z" });
+  assert.notEqual(r.skipped, "older-than-page");
+  assert.equal(bids.observed, "2026-09-21T14:13:11.038Z");
+  assert.match(page, /as of Monday, September 21, 9:13am/);
+});
+
+test("the guard does not hold a page that is itself past the withdrawal line", async () => {
+  /* Page 5 hours old, copy older still: the right answer is to withdraw, and
+     the guard must stand aside so the ordinary path can. */
+  const { r, page } = await buildOver({
+    observed: "2026-09-21T09:00:00Z", feedAt: "2026-09-21T08:00:00Z",
+    now: "2026-09-21T14:00:00Z" });
+  assert.notEqual(r.skipped, "older-than-page", "a stale page was protected from withdrawal");
+  assert.match(page, /Call for today/i, "the price was not withdrawn");
+});
+
+test("a hand-posted page can be taken back by the feed, even though its stamp is newer", async () => {
+  /* A manual price is stamped with the moment it was typed. Clearing it has to
+     let the feed back in, or the break-glass would lock the page. */
+  const { r, bids } = await buildOver({
+    observed: "2026-09-21T14:30:00Z", status: "manual", feedAt: "2026-09-21T14:20:00Z",
+    now: "2026-09-21T14:31:00Z" });
+  assert.notEqual(r.skipped, "older-than-page");
+  assert.equal(bids.observed, "2026-09-21T14:20:00Z");
+});
+
+test("both files are fetched at the SAME commit when one is resolved", async () => {
+  const sha = "4192227154178a27772a1c60db0b70fc20117672";
+  const { asked } = await buildOver({ feedAt: "2026-09-21T14:13:11.038Z", now: "2026-09-21T14:13:31Z", sha });
+  assert.ok(asked.length >= 2, `fetched ${asked.length} url(s)`);
+  for (const u of asked) assert.ok(u.includes(`/emmertadmin/${sha}/`), `read the branch, not the commit: ${u}`);
+});
+
+test("and the command line is what switches the pin on, so tests never touch the network", async () => {
+  const src = readFileSync(new URL("../tools/update-prices.mjs", import.meta.url), "utf8");
+  assert.match(src, /main\(\{ resolveSha: async \(\) => lsRemoteSha\(\) \}\)/,
+    "the CLI no longer pins the read to a commit");
+  assert.match(src, /resolveSha = async \(\) => null/,
+    "main() pins by default, so every test would ask GitHub a question");
+});

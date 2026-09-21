@@ -35,6 +35,7 @@
    the price should not pretend to.
 */
 import { readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { record, prune, EMPTY as HISTORY_EMPTY }
   from "./price-history.mjs";
 
@@ -136,6 +137,48 @@ const IDENTITY_SLACK_CENTS = TICK * 2;
 export const HARVEST_MONTHS = ["October", "November"];
 
 export const CONFIG = { FEED_URL, FEED_MAX_AGE_H, FLOOR, CEILING, HARVEST_MONTHS };
+
+/* ---- READ THE COMMIT, NOT THE BRANCH ----------------------------------
+ *
+ * 2026-09-21, 14:13Z. Sig pressed Run on emmertadmin's reader at 9:13am
+ * Central after a three-hour gap. The read landed at 14:13:12Z and nudged both
+ * sites. What they published, off their own commits:
+ *
+ *   midwestcommodity  14:13:31  observed 14:13:11   right
+ *                     14:16:49  observed 10:56:52   WENT BACKWARDS to 5:56am
+ *   badgergrain       14:13:29  observed 10:56:52   never got it
+ *                     14:16:42  observed 10:56:52   never got it
+ *
+ * Both URLs above name the BRANCH, and raw.githubusercontent.com caches a
+ * branch URL for five minutes (max-age=300). A query string does not get past
+ * it -- tested 2026-09-18, `?cb=` still came back x-cache: HIT. So for five
+ * minutes after every read, a build can be handed the read before it, and
+ * which one it gets depends on which edge answers. Two builds a few minutes
+ * apart can therefore move the page's stamp forward and then back.
+ *
+ * A COMMIT URL CANNOT BE STALE. The file at /<sha>/data/index.json is the same
+ * bytes for ever, so whatever any cache holds for it is the right answer. The
+ * SHA comes from `git ls-remote`, which asks GitHub's git servers and not the
+ * CDN, needs no token, and answers in well under a second. If it fails for any
+ * reason the build falls back to the branch URL exactly as before -- never
+ * worse than it was. */
+export const FEED_REPO = "https://github.com/midwestagsupply/emmertadmin.git";
+
+/** Current tip of emmertadmin main, or null if it cannot be asked. */
+export function lsRemoteSha({ exec = execFileSync } = {}) {
+  try {
+    const out = exec("git", ["ls-remote", FEED_REPO, "refs/heads/main"],
+                     { encoding: "utf8", timeout: 20000, stdio: ["ignore", "pipe", "ignore"] });
+    const m = /^([0-9a-f]{40})\s+refs\/heads\/main\s*$/m.exec(String(out));
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+/** The branch URL rewritten to one commit. No SHA, no change. */
+export function pinned(url, sha) {
+  if (!sha || !/^[0-9a-f]{40}$/.test(sha)) return url;
+  return url.replace("/emmertadmin/main/", `/emmertadmin/${sha}/`);
+}
 
 /* ---- money ------------------------------------------------------------ */
 
@@ -906,7 +949,7 @@ function writeIfChanged(path, next) {
   return true;
 }
 
-export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
+export async function main({ fetchImpl = fetch, now = new Date(), resolveSha = async () => null } = {}) {
   const site = JSON.parse(readFileSync("pricing.json", "utf8"));
   let changedHistory = false;
   /* Read first so the spread checks below can stand down once it is set. */
@@ -999,7 +1042,13 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
 
   if (!b && !why) {
     try {
-      const res = await fetchImpl(FEED_URL, { cache: "no-store" });
+      /* One commit for both files, so the feed and the directory are read from
+         the same instant of the same repository. See "READ THE COMMIT". */
+      let sha = null;
+      try { sha = await resolveSha(); } catch { sha = null; }
+      console.log(sha ? `  reading emmertadmin at ${sha.slice(0, 7)}`
+                      : "  could not resolve emmertadmin's commit; reading the branch, which the CDN may hold for 5 minutes");
+      const res = await fetchImpl(pinned(FEED_URL, sha), { cache: "no-store" });
       if (!res.ok) throw new Withdraw(`the feed returned HTTP ${res.status}`);
       const feed = JSON.parse(await res.text());
 
@@ -1009,7 +1058,7 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
          second thing that can take the price off the page. */
       let checkedAt = feed.checkedAt;
       try {
-        const ir = await fetchImpl(INDEX_URL, { cache: "no-store" });
+        const ir = await fetchImpl(pinned(INDEX_URL, sha), { cache: "no-store" });
         if (ir.ok) {
           checkedAt = freshest(feed.checkedAt, checkedAtFrom(JSON.parse(await ir.text()), "boyceville"));
         } else {
@@ -1020,6 +1069,36 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
       }
 
       b = board({ ...feed, checkedAt }, { now, spreads, basis });
+
+      /* NEVER BACKWARDS, AGAINST WHAT THE PAGE ALREADY SAYS.
+       *
+       * freshest() stops the directory from dragging the feed's clock back,
+       * but nothing stopped a whole build from being older than the page it
+       * was about to overwrite -- which is how midwestcommodity went from
+       * 9:13am to 5:56am at 14:16:49Z on 2026-09-21. The commit pin above is
+       * what should make this unreachable; this is what makes it harmless if
+       * it is ever reached anyway.
+       *
+       * Only against a page built from the feed (status "ok"). A hand-posted
+       * price is stamped with the moment it was typed, which is newer than
+       * any read, and the feed has to be able to take the page back from it.
+       *
+       * NO WITHDRAWAL CASE IS NEEDED HERE, and one was written and then taken
+       * out because a mutation proved it could never run: board() above has
+       * already thrown Withdraw for any read past FEED_MAX_AGE_H, and a copy
+       * older than the page is older still. So a stale page is withdrawn
+       * before this line is reached, which is the right answer. */
+      let onPage = null;
+      try {
+        const prev = JSON.parse(readFileSync("bids.json", "utf8"));
+        if (prev && prev.status === "ok" && typeof prev.observed === "string") onPage = prev.observed;
+      } catch { /* no page yet */ }
+      const pageT = Date.parse(onPage ?? ""), readT = Date.parse(b.checkedAt ?? "");
+      if (Number.isFinite(pageT) && Number.isFinite(readT) && readT < pageT) {
+        console.log(`NOT REBUILDING BACKWARDS: the feed this run was handed says ${b.checkedAt}, ` +
+                    `and the page already says ${onPage}. Leaving the page as it is.`);
+        return { withdrawn: false, changed: [], skipped: "older-than-page" };
+      }
     } catch (e) {
       if (!(e instanceof Withdraw) && !(e instanceof SyntaxError) && !(e instanceof TypeError)) throw e;
       why = e.message;
@@ -1160,5 +1239,8 @@ export async function main({ fetchImpl = fetch, now = new Date() } = {}) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((e) => { console.error(e.message); process.exit(1); });
+  /* The commit pin is switched on HERE and not as main()'s default, so a test
+     that calls main() never reaches for the network to ask GitHub a question. */
+  main({ resolveSha: async () => lsRemoteSha() })
+    .catch((e) => { console.error(e.message); process.exit(1); });
 }
