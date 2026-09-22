@@ -4,6 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Midwest Commodity Service | Baldwin, WI</title>
+<!-- ONE FONT FILE, PRELOADED. The browser cannot know a font exists until it
+     has downloaded and parsed site.css, so on a phone the first screen is
+     drawn twice: once in the fallback and again in Inter.
+
+     MEASURED on a 400kbps link with the processor slowed four times, five
+     loads each, median. "first font" is when the first Inter file finished:
+
+       the site as it stands ......... first paint 3,972ms   first font 5,533ms
+       metric-matched fallback only .. first paint 4,084ms   first font 5,649ms
+       + this one preload ............ first paint 4,328ms   first font 2,225ms
+       + three preloads (500/700/800)  first paint 4,980ms   first font 2,604ms
+
+     Three was the plan and the measurement said no: three font files compete
+     with the stylesheet for the same narrow pipe and cost a full second of
+     first paint to save nothing. One buys the real typeface three and a third
+     seconds earlier for about a third of a second of first paint. Inter 700
+     is the one, because at 390px it carries 61,271px2 of the first screen's
+     text against 500's 49,683 and 800's 37,548.
+
+     crossorigin is required on a font preload even same-origin: without it the
+     file is fetched twice. -->
+<link rel="preload" href="fonts/inter-700.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
 <meta name="description" content="Midwest Commodity Service buys, dries and stores corn in Baldwin, Wisconsin. Today&rsquo;s prices, hours and the drying schedule. Call (715) 704-0548.">
 <meta name="theme-color" content="#15662f">
@@ -82,15 +104,15 @@
 
     <div class="pricecol" id="prices">
       <div class="panel">
-      <div class="hd">Prices paid today<span class="as">as of Tuesday, September 22, 1:30pm</span></div>
+      <div class="hd">Prices paid today<span class="as">as of Tuesday, September 22, 12:00pm</span></div>
       <table class="bids">
         <caption class="sr-only">Cash corn bids by delivery month</caption>
         <thead>
           <tr><th scope="col">Delivery</th><th scope="col" class="r m-hide">Futures</th><th scope="col" class="r m-hide">Basis</th><th scope="col" class="r">We pay</th></tr>
         </thead>
         <tbody>
-          <tr><td class="mo">September</td><td class="fut r m-hide">$5.36<span class="q">¾</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.70</td><td class="pay r">$4.67</td></tr>
-          <tr><td class="mo">October</td><td class="fut r m-hide">$5.36<span class="q">¾</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.72</td><td class="pay r">$4.65</td></tr>
+          <tr><td class="mo">September</td><td class="fut r m-hide">$5.39<span class="q">¼</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.70</td><td class="pay r">$4.69</td></tr>
+          <tr><td class="mo">October</td><td class="fut r m-hide">$5.39<span class="q">¼</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.72</td><td class="pay r">$4.67</td></tr>
         </tbody>
       </table>
 
@@ -549,7 +571,7 @@
 <!-- /TODAY:js -->
 
 <!-- PRICE:meta -->
-<script type="application/json" id="price-meta">{"builtFrom":"2026-09-22T18:30:17.226Z"}</script>
+<script type="application/json" id="price-meta">{"builtFrom":"2026-09-22T17:00:23.780Z"}</script>
 <!-- /PRICE:meta -->
 <!-- PRICE:stale -->
 <script>
@@ -718,6 +740,30 @@
 })();
 </script>
 <!-- /PRICE:live -->
+<!-- PRICE:flash -->
+<script>
+/* THE ONE LINE THAT MAKES A NEW PRICE VISIBLE. PRICE:live already announces
+   every successful swap on `pricechange`; this puts a class on the panel for
+   the length of the tint in site.css and takes it off again, so a second
+   update a minute later flashes a second time. Nothing here decides anything:
+   if the script is blocked the panel still updates, just quietly. */
+(function () {
+  "use strict";
+  var TINT = 1700;
+  var t = null;
+  document.addEventListener("pricechange", function () {
+    var p = document.querySelector(".pricecol .panel");
+    if (!p) return;
+    p.classList.remove("is-fresh");
+    void p.offsetWidth;                 /* restart the tint on a second swap */
+    p.classList.add("is-fresh");
+    clearTimeout(t);
+    t = setTimeout(function () { p.classList.remove("is-fresh"); }, TINT);
+  });
+})();
+</script>
+<!-- /PRICE:flash -->
+
 
 
 

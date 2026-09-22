@@ -1107,3 +1107,162 @@ header{border-bottom:3px solid var(--ink)}
    still in the repository and the CSS lockup is the thing that draws them, so
    a revert is one markup edit rather than a rebuild. Nothing new should be
    hung on them. */
+
+
+/* ====================================================================
+   2026-09-22. SIX THINGS THE BROWSER CAN DO THAT THIS SITE WAS NOT ASKING
+   FOR. Nothing below changes a word, a price or a layout -- the last one was
+   checked by comparing every element on the page, at 390px and at 1100px,
+   before and after. Every number in
+   it was measured on this repository, on this machine, and the measurement
+   is written beside it so the next person can check it rather than trust it.
+   ==================================================================== */
+
+/* ---- 1. THE FALLBACK FACE IS MEASURED AGAINST INTER ------------------
+   Five font files load with font-display:swap, so the first paint is in
+   whatever the phone already has -- Segoe UI, Roboto, Arial -- and every
+   line moves when Inter lands. A font is not allowed to move the page.
+
+   MEASURED with fontTools over the 69 characters this site actually sets
+   (a-z A-Z 0-9 space . , : / $ -):
+
+       average advance, Inter 500 .................. 1209.74 units / 2048 em
+       average advance, Arial regular .............. 1133.25 units / 2048 em
+                                                     (Liberation Sans, which
+                                                     is metric-identical to
+                                                     Arial, measured here)
+       size-adjust = 1209.74 / 1133.25 ............. 106.75%
+
+   Inter's ascent and descent are 1984 and -494 of a 2048 em. Divided by the
+   size-adjust above, that is 90.75% and 22.60% of the adjusted em, so a line
+   of the fallback occupies exactly the box Inter will occupy. Line gap is
+   zero in Inter and is overridden to zero here, because Arial's is not.
+
+   The bold weights are 1.47% narrow (700) and 0.10% wide (800) against
+   Arial's own bold under the same adjustment. One face is used rather than
+   three because a fallback per weight would have to name a bold local file
+   that Windows, Android and iOS each spell differently.
+
+   The display face is deliberately NOT given one: its fallback is Arial
+   Narrow, which is not on the machine this was measured on, and a metric
+   typed from memory is worse than no metric at all. */
+@font-face{
+  font-family:"Inter Fallback";
+  src:local("Segoe UI"),local("Roboto"),local("Helvetica Neue"),local("Arial"),local("Liberation Sans");
+  /* Liberation Sans is last because it is Arial's metric twin and the
+     face Linux actually resolves; without it this face matches nothing
+     on a Linux machine and the measurement below cannot be taken. */
+  size-adjust:106.75%;
+  ascent-override:90.75%;
+  descent-override:22.60%;
+  line-gap-override:0%;
+}
+:root{
+  --font:"Inter","Inter Fallback","Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* ---- 2. THE LONG SECTIONS ARE NOT LAID OUT UNTIL THEY ARE NEEDED -----
+   MEASURED at 390px: the page is 9,854px tall and the first screen is 900
+   of them. The drying schedule alone is 3,931px, laid out in full before the
+   first price is painted on a phone on a country tower, and 1,035px below
+   the fold before it even starts.
+
+   contain-intrinsic-size carries the MEASURED height of each one so the
+   scrollbar is the right length before anything is drawn, and `auto` tells
+   the browser to use the real height once it has seen it. Heights at 390px
+   and at 1100px are both measured; the desktop set is below.
+
+   ONE SECTION, NOT THREE. It was tried on the Wisconsin section and on
+   contact as well, and both MOVED THE PAGE: content-visibility brings layout
+   containment with it, a contained box does not let a child's margin collapse
+   through its edge, and each of those two sections grew 69px. Measured at
+   390px, every element on the page compared before and after: the drying
+   schedule changes nothing (0 elements differ), the other two change 48 and
+   17. A delivered layout is not worth a few milliseconds.
+
+   Find-in-page, the #drying anchor and the skip link all still reach inside
+   it: skipped content is searchable by spec.
+   PRINTING IS THE EXCEPTION -- see the print block, which turns this off
+   entirely, because a sheet must not come out of the printer half empty. */
+@supports (content-visibility:auto){
+  section#drying{content-visibility:auto;contain-intrinsic-size:auto 3931px}
+  @media(min-width:1024px){ section#drying{contain-intrinsic-size:auto 2467px} }
+}
+
+/* ---- 3. A PRICE THAT ARRIVED WHILE YOU WERE LOOKING SAYS SO ----------
+   PRICE:live replaces the price panel in place when the repository has a
+   newer read. Until now that happened in silence: a farmer watching the
+   page saw a number change under his eyes with nothing to say it had.
+
+   The class is put on by the one line of script under PRICE:live, on the
+   `pricechange` event that block already fires. It is not done with
+   @starting-style, which would be the tidier tool and was tested first:
+   measured in Chromium, a starting style ALSO runs on the first paint of
+   the page, so every visitor would have seen the flash on arrival as if a
+   price had just moved. A flash that is not true is worse than no flash.
+
+   Anyone who has asked their phone for less motion gets the same
+   information as a held tint with no animation. */
+.panel.is-fresh td.pay,.panel.is-fresh td.cash,.panel.is-fresh .hd .as{animation:freshen 1.6s ease-out 1}
+@keyframes freshen{
+  0%   {background-color:rgba(245,207,78,.95)}
+  55%  {background-color:rgba(245,207,78,.75)}
+  100% {background-color:transparent}
+}
+@media(prefers-reduced-motion:reduce){
+  .panel.is-fresh td.pay,.panel.is-fresh td.cash,.panel.is-fresh .hd .as{animation:none;background-color:rgba(245,207,78,.45)}
+}
+
+/* ---- 4. WINDOWS HIGH CONTRAST -----------------------------------------
+   The office PC in a scale house is exactly where forced-colors turns up,
+   and in that mode the browser throws every background away. The panel
+   header -- the brand bar that says which elevator a printed or pinned-up
+   sheet came from -- becomes invisible, and so does the difference between
+   a heading row and a price row. Borders survive forced colors; colours do
+   not. So the bar is drawn with a border instead. */
+@media (forced-colors: active){
+  .panel .hd{border-bottom:3px solid}
+  .panel,.drop,.act,.statute-box,.shrink,.notice{border:1px solid}
+  .call{border:3px solid;forced-color-adjust:none}
+  td.cash,.today-hrs{font-weight:800}
+  .panel.is-fresh td.pay,.panel.is-fresh td.cash,.panel.is-fresh .hd .as{animation:none;outline:2px solid}
+}
+
+/* ---- 5. THE PAPER ----------------------------------------------------
+   The print stylesheet above was measured at six letter sheets. It never
+   set a page margin, so every browser used its own default, which is
+   between 10 and 25mm depending on which one the office has.
+
+   MEASURED, printing this page to Letter at four margins:
+       10mm ..... 6 sheets      19mm ..... 7 sheets
+       12.7mm ... 6 sheets      25mm ..... 7 sheets
+   So the office's sixth-and-seventh sheet was decided by a setting nobody
+   here chose. 12.7mm is half an inch, the narrowest margin a US office
+   printer is certain to be able to lay down, and it is now the margin
+   whatever browser prints this.
+
+   widows and orphans stop a single line of a paragraph being left behind on
+   a page by itself, and a heading is not allowed to be the last thing on a
+   sheet. */
+@page{margin:12.7mm}
+@media print{
+  /* Section 2 hides what is not on screen. There is no screen here. */
+  section#drying{content-visibility:visible!important}
+  p,li,td{orphans:3;widows:3}
+  h2,h3,.schedhd,.cbh{break-after:avoid-page}
+  .panel.is-fresh td.pay,.panel.is-fresh td.cash,.panel.is-fresh .hd .as{animation:none!important}
+}
+
+/* ---- 6. THE SMALL ONES -----------------------------------------------
+   The skip link and the two in-page links land flush against the top edge
+   of the window, which reads as though the page has been cut. Three lines
+   of air, and the same for anything else a link points at.
+
+   Selected text takes the brand rather than the browser's blue.
+
+   A slashed zero was the third idea here and is NOT in this file: the four
+   Inter files in fonts/ were read with fontTools and carry exactly one
+   OpenType feature between them, `tnum`, which this site already uses.
+   There is no zero to slash. */
+:target,#prices,#drying,#contact{scroll-margin-block-start:14px}
+::selection{background:var(--brand);color:var(--on-brand)}

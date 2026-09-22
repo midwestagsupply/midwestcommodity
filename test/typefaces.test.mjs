@@ -21,6 +21,9 @@ const GENERIC = new Set([
   "sans-serif", "serif", "monospace", "system-ui", "ui-sans-serif", "ui-monospace",
   "ui-serif", "cursive", "fantasy", "inherit", "initial", "unset", "-apple-system",
   "blinkmacsystemfont", "segoe ui", "roboto", "helvetica neue", "arial",
+  /* Arial's metric twin, and the face a Linux machine resolves Arial to.
+     It ships with the operating system, never from this repository. */
+  "liberation sans",
 ]);
 
 const families = (css) => {
@@ -37,10 +40,34 @@ const families = (css) => {
 
 const files = ["site.css", "index.html", "404.html"];
 
+/* A METRICS-ONLY FACE IS NOT A TYPEFACE. 2026-09-22: "Inter Fallback" was
+   added to site.css. It ships no file and draws nothing of its own -- its
+   src is local() alone, so it is one of the system faces already on the list
+   above, wearing Inter's measurements (size-adjust, ascent-override,
+   descent-override) so the page does not move when Inter finishes loading.
+   Naming one is allowed. Letting one FETCH a face is not, and that is the
+   thing this reads for: a url() inside such a block, or a local() naming
+   something off the list, fails here. */
+const metricOnly = (css) => {
+  const out = new Set();
+  for (const m of css.matchAll(/@font-face\s*\{([^}]*)\}/gi)) {
+    const body = m[1];
+    const fam = /font-family\s*:\s*["']?([^;"']+)/i.exec(body);
+    const src = /src\s*:\s*([^;]+)/i.exec(body);
+    if (!fam || !src || /url\(/i.test(src[1])) continue;
+    const locals = [...src[1].matchAll(/local\(\s*["']?([^)"']+)/gi)].map((x) => x[1].trim().toLowerCase());
+    if (!locals.length || locals.some((n) => !GENERIC.has(n))) continue;
+    if (!/size-adjust|ascent-override|descent-override/i.test(body)) continue;
+    out.add(fam[1].trim().toLowerCase());
+  }
+  return out;
+};
+
 for (const f of files) {
   test(`${f} names no typeface this business does not own`, () => {
     const text = readFileSync(f, "utf8");
-    const strangers = [...families(text)].filter((n) => !OWNED.has(n) && !GENERIC.has(n));
+    const metrics = metricOnly(text);
+    const strangers = [...families(text)].filter((n) => !OWNED.has(n) && !GENERIC.has(n) && !metrics.has(n));
     assert.deepEqual(strangers, [],
       `${f} asks for ${JSON.stringify(strangers)}. This site uses Inter and Wordmark. ` +
       `A face named here but not shipped in fonts/ renders as whatever the reader's ` +
