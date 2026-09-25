@@ -1266,3 +1266,16 @@ header{border-bottom:3px solid var(--ink)}
    There is no zero to slash. */
 :target,#prices,#drying,#contact{scroll-margin-block-start:14px}
 ::selection{background:var(--brand);color:var(--on-brand)}
+
+/* ---- 2026-09-25 audit: three small phone fixes -------------------------------
+   1. "Call (715) 704-0548 to lock a / price" left one word alone on line two.
+      Balance the two lines instead.
+   2. The number inside that button read "704 - 0548" (tabular figures give the
+      hyphen a full digit's width). Proportional figures for the button only;
+      the price table keeps tabular.
+   3. The two schedules stack on a phone: 79 rows at 45px is about 3,500px of
+      scrolling. Rows read, they are not tapped, so they can be shorter. */
+.call{text-wrap:balance}
+.call .nb{font-variant-numeric:normal;font-feature-settings:normal}
+@media(max-width:600px){ .sched td{padding-top:5px;padding-bottom:5px} }
+
