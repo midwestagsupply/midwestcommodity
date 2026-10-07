@@ -6,10 +6,10 @@
   "harvest": "7:00a to 7:00p",
   "harvest_mode": false,
   "closed_today": false,
-  "today_override": null,
-  "today_date": null,
-  "banner": "10/6/26 - Accepting corn from 8am - 7pm",
+  "today_override": "8:00a to 7:00p",
+  "today_date": "2026-10-07",
+  "banner": "10/7/26 - Accepting corn from 8am - 7pm",
   "hoursnote": null,
-  "updated_at": "2026-10-06T12:54:53.700Z",
+  "updated_at": "2026-10-07T12:31:42.377Z",
   "updated_by": "midwestagsupply"
 }
