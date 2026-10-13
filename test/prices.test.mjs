@@ -406,7 +406,7 @@ test("bids.json keeps the schema and the terms the sites already publish", () =>
   assert.equal(j.schema, "emmert-cash-bids/2",
     "bumped because pricedAt was added; a published schema is a contract");
   assert.equal(j.status, "ok");
-  assert.equal(j.count, 7);
+  assert.equal(j.count, 2, "the two rows the page shows (see feedRows)");
   assert.equal(j.observed, LIVE.checkedAt);
   assert.equal(j.terms.licence, "CC0-1.0");
   /* THE PLUMBING, NOT THE LITERAL. This asserted the address twice -- once in
@@ -471,7 +471,7 @@ test("the CSV keeps the header the sites already publish, byte for byte", () => 
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const csv = bidsCsv(b, SITE);
   assert.equal(csv.split("\n")[0], CSV_HEADER);
-  assert.equal(csv.trim().split("\n").length, 8, "header plus seven rows");
+  assert.equal(csv.trim().split("\n").length, 3, "header plus the two rows the page shows");
   assert.match(csv, /^Wheeler,"Badger Grain Supply, LLC",Wheeler,WI,Corn,cash,August,August,,-0\.62,4\.02$/m,
     "our basis and our price -- never their basis beside our price");
   assert.ok(csv.endsWith("\n"));
@@ -551,7 +551,7 @@ test("...and a nonsense spread is refused too", async () => {
 
 import { headline, HARVEST_MONTHS } from "../tools/update-prices.mjs";
 
-test("THE PAGE SHOWS TWO NUMBERS; THE RECORD KEEPS ALL SEVEN", () => {
+test("THE PAGE SHOWS TWO NUMBERS; THE FEED CARRIES THOSE TWO", () => {
   const b = board(LIVE, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const html = renderPriced(b);
   assert.equal((html.match(/class="pay r"/g) || []).length, 2,
@@ -561,9 +561,13 @@ test("THE PAGE SHOWS TWO NUMBERS; THE RECORD KEEPS ALL SEVEN", () => {
   assert.doesNotMatch(html, /September|December|January|February/,
     "the other five months are captured, not displayed");
 
+  /* 2026-10-13: the feed carries what the page prints, not the whole board. */
   const j = bidsJson(b, { contact: SITE.contact, generated: NOW.toISOString() });
-  assert.equal(j.count, 7, "but the published record keeps the whole board");
-  assert.equal(bidsCsv(b, SITE).trim().split("\n").length, 8);
+  assert.equal(j.count, 2, "the feed carries the two rows the page shows");
+  assert.deepEqual(j.bids.map((r) => r.delivery), ["August", "October"]);
+  assert.deepEqual(j.bids.map((r) => r.cashPrice), b.bids.filter((r) =>
+    r.delivery === "August" || r.delivery === "October").map((r) => r.pay));
+  assert.equal(bidsCsv(b, SITE).trim().split("\n").length, 3);
 });
 
 test("harvest is the lower of October and November, never the flattering one", () => {
@@ -759,7 +763,7 @@ test("clearing the boxes hands it straight back to the feed", async () => {
       text: async () => JSON.stringify(LIVE) }), now: fresh });
     const j = JSON.parse(readFileSync(join(dir, "bids.json"), "utf8"));
     assert.equal(j.status, "ok");
-    assert.equal(j.count, 7);
+    assert.equal(j.count, 2, "the feed's own reading again: the two rows the page shows");
   } finally { process.chdir(cwd); }
 });
 
@@ -1097,7 +1101,7 @@ test("the published record carries the null through rather than inventing one", 
   const b = board(lagging, { now: NOW, spreads: { cash: 0.10, harvest: null } });
   const j = bidsJson(b, { contact: SITE.contact, generated: NOW.toISOString() });
   assert.equal(j.status, "ok");
-  assert.equal(j.count, 7);
+  assert.equal(j.count, 2);
   assert.equal(j.bids[0].cashPrice, 4.02);
   assert.equal(j.bids[0].basis, -0.62);
 });

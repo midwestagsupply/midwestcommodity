@@ -503,3 +503,27 @@ test("the generated script still parses", () => {
   const body = s.match(/<script>\n([\s\S]*?)\n<\/script>/)[1];
   new Function("document", "window", "Intl", body);
 });
+
+/* ---- the banner's "Hide after" date (2026-10-13) ------------------------- */
+import { bannerShowing } from "../tools/today-core.mjs";
+
+test("THE BANNER SHOWS THROUGH ITS HIDE-AFTER DATE AND IS GONE THE DAY AFTER", () => {
+  const h = { banner: "Accepting corn 8am to 4:30pm", banner_until: "2026-10-13" };
+  assert.equal(bannerShowing(h, "2026-10-12"), h.banner);
+  assert.equal(bannerShowing(h, "2026-10-13"), h.banner, "shown all of its last day");
+  assert.equal(bannerShowing(h, "2026-10-14"), null, "gone the next day");
+  assert.equal(h.banner, "Accepting corn 8am to 4:30pm", "the text is kept, only the bar comes down");
+});
+
+test("a banner with no end date, or one that will not parse, keeps showing", () => {
+  for (const u of [undefined, null, "", "10/13/26", "soon"])
+    assert.equal(bannerShowing({ banner: "x", banner_until: u }, "2030-01-01"), "x", String(u));
+  assert.equal(bannerShowing({ banner: null, banner_until: "2030-01-01" }, "2026-01-01"), null);
+  assert.equal(bannerShowing({ banner: "  " }, "2026-01-01"), null);
+});
+
+test("update-today renders the bar through bannerShowing, not straight off hours.json", () => {
+  const src = readFileSync(new URL("../tools/update-today.mjs", import.meta.url), "utf8");
+  assert.match(src, /const msg = bannerShowing\(h, todayISO\);/);
+  assert.doesNotMatch(src, /\$\{esc\(h\.banner\)\}/, "the bar is still built from h.banner directly");
+});

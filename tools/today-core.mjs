@@ -140,6 +140,21 @@ export function expireToday(h, todayISO) {
   return false;
 }
 
+/* THE BANNER TAKES ITSELF DOWN. Added 2026-10-13.
+ *
+ * The office was typing the date into the message ("10/13/26 - Accepting corn
+ * from 8am") because nothing took the bar down, so yesterday's notice stayed
+ * up until somebody remembered. `banner_until` is a Central date, YYYY-MM-DD,
+ * and the bar shows through the end of that day. Absent or null means no end
+ * date, which is how every hours.json written before this behaves. An end date
+ * that will not parse is ignored rather than trusted to hide the bar. */
+export function bannerShowing(h, todayISO) {
+  if (typeof h.banner !== "string" || !h.banner.trim()) return null;
+  const u = h.banner_until;
+  if (typeof u === "string" && /^\d{4}-\d{2}-\d{2}$/.test(u) && todayISO > u) return null;
+  return h.banner;
+}
+
 /* HOW LONG UNTIL THE BOX COULD NEED TO CHANGE?
  *
  * The box is accurate to the minute, so it repaints on the minute. Sleeping

@@ -30,7 +30,7 @@
       half of each, so it moved to the job that already owns index.html.
 */
 import { readFileSync, writeFileSync } from "node:fs";
-import { DAY_NAMES, spanMinutes, opensAt, todayBox, expireToday } from "./today-core.mjs";
+import { DAY_NAMES, spanMinutes, opensAt, todayBox, expireToday, bannerShowing } from "./today-core.mjs";
 
 /* Imported by the tests for the pure parts, and run as a script by the
    workflow. Nothing below the guard happens on import, so `todayBox` can be
@@ -580,14 +580,16 @@ const NOTICE = /(<\/header>\n)(\n?<div class="notice">[\s\S]*?\n<\/div>\n)?/;
 if ("banner" in h) {
   if (!NOTICE.test(html))
     throw new Error("could not find where the notice banner goes, just after </header>");
-  const bar = h.banner
+  /* Past its "Hide after" date the bar comes down; hours.json keeps the text. */
+  const msg = bannerShowing(h, todayISO);
+  const bar = msg
     ? `\n<div class="notice">\n  <div class="wrap">\n` +
       `    <span class="notice-tag">Notice</span>\n` +
-      `    <span class="notice-msg">${esc(h.banner)}</span>\n` +
+      `    <span class="notice-msg">${esc(msg)}</span>\n` +
       `  </div>\n</div>\n`
     : "";
   html = html.replace(NOTICE, (_m, close) => close + bar);
-  console.log(h.banner ? `banner: ${h.banner}` : "banner: hidden");
+  console.log(msg ? `banner: ${msg}` : h.banner ? `banner: hidden, its end date ${h.banner_until} has passed` : "banner: hidden");
 }
 
 /* ---- the small print under the hours -----------------------------------

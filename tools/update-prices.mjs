@@ -615,8 +615,8 @@ export const asOf = (iso) => {
 
 /* WHAT THE PUBLIC PAGE SHOWS.
  *
- * The whole Boyceville board is captured -- all of it goes into bids.json
- * and bids.csv, because that is the record. The PAGE shows two numbers, and
+ * The whole Boyceville board is read, but only what the page shows goes into
+ * bids.json and bids.csv (see feedRows). The PAGE shows two numbers, and
  * only two: what we pay for corn off the truck today, and what we will pay
  * for harvest delivery.
  *
@@ -882,7 +882,26 @@ ${rows}
    meant, so a consumer written against `/1` still finds every field it knew.
    The version is bumped rather than the field quietly added: adding a field
    while still claiming `/1` is how a published contract stops being one. */
+/* THE FEED CARRIES WHAT THE PAGE SHOWS, AND NOTHING ELSE. Changed 2026-10-13.
+ *
+ * It used to carry the whole Boyceville board as "the record". With a months
+ * table that meant every month the office had NOT ticked went out too, priced
+ * on a basis nobody chose for this yard, and dnilgis/bids republished those
+ * rows as our bids. A row is in bids.json and bids.csv now only when its price
+ * is on the page: the ticked months, or with no months table the cash and
+ * harvest rows the page prints. A hand-posted board is shown whole, so it is
+ * published whole. Fewer rows, same schema, same field names. */
+export function feedRows(b) {
+  if (!b) return [];
+  if (b.manual) return b.bids;
+  const ticked = publishedRows(b.bids, b.months);
+  if (ticked) return ticked;
+  const { spot, harvest } = headline(b.bids);
+  return b.bids.filter((r) => r === spot || r === harvest);
+}
+
 export function bidsJson(b, { contact, generated }) {
+  const rows = feedRows(b);
   return {
     schema: "emmert-cash-bids/2",
     generated,
@@ -901,13 +920,13 @@ export function bidsJson(b, { contact, generated }) {
         "to confirm before hauling.",
       contact,
     },
-    count: b ? b.bids.length : 0,
-    bids: b ? b.bids.map((r) => ({
+    count: rows.length,
+    bids: rows.map((r) => ({
       commodity: r.commodity,
       delivery: r.delivery,
       basis: r.basisDollars,
       cashPrice: r.pay,
-    })) : [],
+    })),
     _company: undefined,
   };
 }
@@ -923,7 +942,7 @@ export const CSV_HEADER =
 
 export function bidsCsv(b, site) {
   if (!b) return CSV_HEADER + "\n";
-  const rows = b.bids.map((r) => [
+  const rows = feedRows(b).map((r) => [
     site.location, site.company, site.city, site.state,
     r.commodity, "cash", r.delivery, r.delivery,
     "",                       // futures symbol deliberately blank; see terms

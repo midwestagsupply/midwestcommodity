@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   board, renderPriced, publishedRows, basisFor, monthTable, payFromBasis,
-  bidsJson, Withdraw, BASIS_ABS_MAX, HARVEST_MONTHS,
+  bidsJson, bidsCsv, Withdraw, BASIS_ABS_MAX, HARVEST_MONTHS,
 } from "../tools/update-prices.mjs";
 
 /* The same live payload the rest of the suite uses, read from dnilgis/bids on
@@ -257,16 +257,56 @@ test("monthTable normalises what it keeps, so board() never sees a half-filled e
   });
 });
 
-/* ── the record is not the page ─────────────────────────────────────────── */
+/* ── the feed is the page ───────────────────────────────────────────────── */
 
-test("THE PAGE SHOWS WHAT WAS TICKED; THE RECORD STILL KEEPS EVERY ROW", () => {
+/* 2026-10-13: bids.json and bids.csv used to carry the whole board "as the
+   record", so months the office never ticked went out on a basis nobody set
+   for this yard, and dnilgis/bids republished them as our bids. A row is in
+   the feed only when it is on the page. */
+test("THE FEED CARRIES ONLY THE MONTHS TICKED TO SHOW", () => {
   const b = board(LIVE, { now: NOW, spreads: SPREADS,
     basis: { cash: -0.75, harvest: null, months: on("September") } });
-  assert.equal(rowsOf(renderPriced(b)).length, 1);
+  assert.deepEqual(rowsOf(renderPriced(b)), ["September"]);
   const j = bidsJson(b, { contact: "x@example.com", generated: NOW.toISOString() });
-  assert.equal(j.bids.length, LIVE.bids.length,
-    "bids.json is the record and must carry the whole board whatever the page shows");
-  assert.equal(j.count, LIVE.bids.length);
+  assert.deepEqual(j.bids.map((r) => r.delivery), ["September"],
+    "a month the office did not tick must not reach the feed");
+  assert.equal(j.count, 1, "count is the number of rows actually carried");
+  const csv = bidsCsv(b, { location: "Wheeler", company: "Co", city: "Wheeler", state: "WI" });
+  assert.deepEqual(csv.trim().split("\n").slice(1).map((l) => l.split(",")[6]), ["September"]);
+});
+
+test("the feed and the page agree row for row, in board order", () => {
+  const months = { ...on("December", "October"), August: { basis: -0.4, publish: false },
+                   January: { basis: -0.6, publish: false } };
+  const b = board(LIVE, { now: NOW, spreads: SPREADS, basis: { cash: -0.75, harvest: null, months } });
+  const page = rowsOf(renderPriced(b));
+  assert.deepEqual(page, ["October", "December"]);
+  const j = bidsJson(b, { contact: "x@example.com", generated: NOW.toISOString() });
+  assert.deepEqual(j.bids.map((r) => r.delivery), page);
+  for (const r of j.bids) {
+    assert.deepEqual(Object.keys(r), ["commodity", "delivery", "basis", "cashPrice"],
+      "schema emmert-cash-bids/2 rows keep exactly their fields");
+    assert.equal(typeof r.basis, "number");
+    assert.equal(typeof r.cashPrice, "number");
+  }
+  assert.equal(j.schema, "emmert-cash-bids/2");
+  assert.equal(j.status, "ok");
+});
+
+test("the live pricing.json publishes exactly its ticked months", () => {
+  const site = JSON.parse(readFileSync(new URL("../pricing.json", import.meta.url), "utf8"));
+  const months = monthTable(site);
+  const ticked = Object.keys(months).filter((m) => months[m].publish);
+  const unticked = Object.keys(months).filter((m) => !months[m].publish);
+  const feed = clone(LIVE);
+  feed.bids = Object.keys(months).map((m, i) =>
+    ({ seq: i, commodity: "Corn", delivery: m, futuresMonth: "Dec 26", cash: 4.33, basisDollars: -0.55, futuresPriceCents: 488 }));
+  feed.count = feed.bids.length;
+  const b = board(feed, { now: NOW, spreads: SPREADS,
+    basis: { cash: site.basis ?? null, harvest: site.basisHarvest ?? null, months } });
+  const j = bidsJson(b, { contact: "x@example.com", generated: NOW.toISOString() });
+  assert.deepEqual(j.bids.map((r) => r.delivery), ticked);
+  for (const m of unticked) assert.ok(!j.bids.some((r) => r.delivery === m), `${m} is not ticked`);
 });
 
 test("rendering with months is idempotent", () => {

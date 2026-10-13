@@ -104,15 +104,15 @@
 
     <div class="pricecol" id="prices">
       <div class="panel">
-      <div class="hd">Prices paid today<span class="as">as of Tuesday, October 13, 9:20am</span></div>
+      <div class="hd">Prices paid today<span class="as">as of Tuesday, October 13, 8:10am</span></div>
       <table class="bids">
         <caption class="sr-only">Cash corn bids by delivery month</caption>
         <thead>
           <tr><th scope="col">Delivery</th><th scope="col" class="r m-hide">Futures</th><th scope="col" class="r m-hide">Basis</th><th scope="col" class="r">We pay</th></tr>
         </thead>
         <tbody>
-          <tr><td class="mo">October</td><td class="fut r m-hide">$4.86<span class="q">½</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.68</td><td class="pay r">$4.19</td></tr>
-          <tr><td class="mo">November</td><td class="fut r m-hide">$4.86<span class="q">½</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.68</td><td class="pay r">$4.19</td></tr>
+          <tr><td class="mo">October</td><td class="fut r m-hide">$4.83<span class="q">¼</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.68</td><td class="pay r">$4.15</td></tr>
+          <tr><td class="mo">November</td><td class="fut r m-hide">$4.83<span class="q">¼</span><span class="con">Dec 26</span></td><td class="bas r m-hide">−0.68</td><td class="pay r">$4.15</td></tr>
         </tbody>
       </table>
 
@@ -322,6 +322,8 @@
          own paperwork, and until now the only machine-readable thing about
          this business that a search engine could not see. -->
     <link itemprop="hasMap" href="https://www.google.com/maps/dir/?api=1&destination=1881%20140th%20Ave%2C%20Baldwin%2C%20WI%2054002">
+    <!-- Street-precision pin: this address geocoded by the US Census geocoder, the same pin dnilgis/bids uses (sources/midwestcommodity-*.json). -->
+    <div itemprop="geo" itemscope itemtype="https://schema.org/GeoCoordinates"><meta itemprop="latitude" content="45.06464"><meta itemprop="longitude" content="-92.41691"></div>
     <div itemprop="identifier" itemscope itemtype="https://schema.org/PropertyValue">
       <meta itemprop="name" content="Wisconsin grain dealer license">
       <meta itemprop="value" content="252525 GL">
@@ -463,6 +465,13 @@
     return false;
   }
 
+  function bannerShowing(h, todayISO) {
+    if (typeof h.banner !== "string" || !h.banner.trim()) return null;
+    const u = h.banner_until;
+    if (typeof u === "string" && /^\d{4}-\d{2}-\d{2}$/.test(u) && todayISO > u) return null;
+    return h.banner;
+  }
+
   function msToNextMinute(nowMs) {
     if (!Number.isFinite(nowMs)) return 60000;
     return 60000 - (((nowMs % 60000) + 60000) % 60000) + 1000;
@@ -573,22 +582,55 @@
 <!-- /TODAY:js -->
 
 <!-- PRICE:meta -->
-<script type="application/json" id="price-meta">{"builtFrom":"2026-10-13T14:20:15.775Z"}</script>
+<script type="application/json" id="price-meta">{"builtFrom":"2026-10-13T13:10:19.987Z"}</script>
 <!-- /PRICE:meta -->
 <!-- PRICE:stale -->
 <script>
-/* IS THIS PAGE STILL BEING BUILT?
-   Everything above is baked; if the workflow stops, the price freezes and
-   nothing on the page says so. This reads the build's own checkedAt and, past
-   a day, stops the panel claiming to be today's price. It changes nothing
-   while the site is healthy, and with JavaScript off the page is exactly what
-   it was -- the same trade the hours box already makes.
+/* IS THIS PAGE STILL BEING BUILT, AND IS THE MARKET OPEN?
+   The price above is baked in by the build, which reads the board every ten
+   minutes around the clock. If the build stops, the price freezes and the
+   page would go on saying "Prices paid today". So, in the reader's browser:
+
+   - past 4 hours without a build, the cash and futures columns turn to
+     dashes, the heading says "Prices not updating since ..." and the reader
+     is asked to call. The same line Flash Grain uses, at the same 4 hours
+     the build itself withdraws the price (Sig, 13 Oct); this covers the case
+     where the build does not run at all.
+   - past 24 hours the "since" time carries the date, because "since Tue
+     8:10am" could be any Tuesday.
+   - while the build is fresh and CBOT is shut (the 7:45 to 8:30am break,
+     afternoons, overnight Friday to Sunday evening) the stamp says
+     "CBOT closed". Exchange holidays are not known here.
 
    Everything is looked up again on each check, because PRICE:live below can
-   replace the panel and its stamp while the page is open. */
+   replace the panel and its stamp while the page is open. With JavaScript off
+   the page is exactly what the build wrote. */
 (function () {
   "use strict";
-  var STALE_H = 24;
+  var HIDE_H = 4, DATE_H = 24, TZ = "America/Chicago";
+  var DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  function central(t) {
+    var p = {};
+    new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", hour: "numeric",
+      minute: "numeric", hourCycle: "h23" }).formatToParts(new Date(t))
+      .forEach(function (x) { p[x.type] = x.value; });
+    return { day: DAYS.indexOf(p.weekday), min: (+p.hour % 24) * 60 + (+p.minute) };
+  }
+  /* CBOT corn: Sunday to Friday 7:00pm to 7:45am, and 8:30am to 1:20pm on
+     weekdays. Central time. */
+  function cbotOpen(t) {
+    var n = central(t), wk = n.day >= 0 && n.day <= 4;
+    if (wk && n.min >= 510 && n.min < 800) return true;
+    if (wk && n.min < 465) return true;
+    if ((n.day === 6 || (n.day >= 0 && n.day <= 3)) && n.min >= 1140) return true;
+    return false;
+  }
+  function since(t, withDate) {
+    var o = { timeZone: TZ, weekday: "short", hour: "numeric", minute: "2-digit" };
+    if (withDate) { o.month = "short"; o.day = "numeric"; }
+    return new Date(t).toLocaleString("en-US", o).replace(/ ([AP])M$/, function (_m, a) {
+      return a.toLowerCase() + "m"; });
+  }
   function paint() {
     var meta = document.getElementById("price-meta");
     var panel = document.querySelector(".pricecol .panel");
@@ -599,28 +641,47 @@
     var hd = panel.querySelector(".hd");
     var table = panel.querySelector("table.bids");
     if (!hd || !table || !hd.firstChild) return;
-    var hours = (Date.now() - when) / 36e5;
-    if (hours <= STALE_H || panel.classList.contains("is-stale")) return;
+    var as = hd.querySelector(".as");
+    if (as && !as.getAttribute("data-built")) as.setAttribute("data-built", as.textContent);
+    var now = Date.now(), hours = (now - when) / 36e5;
+    if (hours <= HIDE_H) {
+      if (as) as.textContent = as.getAttribute("data-built") + (cbotOpen(now) ? "" : " · CBOT closed");
+      return;
+    }
+    var stamp = since(when, hours > DATE_H);
     panel.classList.add("is-stale");
-    hd.firstChild.nodeValue = "Last posted price";
+    hd.firstChild.nodeValue = "Prices not updating";
+    if (as) as.textContent = "since " + stamp;
+    var cells = table.querySelectorAll("td.pay, td.fut");
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].textContent = "—";
+      cells[i].setAttribute("aria-label", "not shown");
+      cells[i].classList.add("gone");
+    }
     var tel = document.querySelector(".call .nb");
-    var days = Math.floor(hours / 24);
-    var p = document.createElement("p");
-    p.className = "stalewarn";
-    p.setAttribute("role", "alert");
-    p.textContent = "This page has not been updated in " + days +
-      (days === 1 ? " day" : " days") + ". The figure below is the last one " +
-      "posted, not today’s price." +
-      (tel ? " Call " + tel.textContent + " for today’s." : "");
-    panel.insertBefore(p, table);
+    var p = panel.querySelector(".stalewarn");
+    if (!p) {
+      p = document.createElement("p");
+      p.className = "stalewarn";
+      p.setAttribute("role", "alert");
+      panel.insertBefore(p, table);
+    }
+    p.textContent = "Prices are hidden because this page has not updated since " + stamp + ". Call ";
+    if (tel) {
+      var nb = document.createElement("span");
+      nb.className = "nb";                 /* the number does not break across lines */
+      nb.textContent = tel.textContent;
+      p.appendChild(nb);
+      p.appendChild(document.createTextNode(" for today’s price."));
+    } else p.appendChild(document.createTextNode("us for today’s price."));
   }
   paint();
-  /* A page left open on the office screen over a long weekend crosses the
-     threshold without ever reloading. */
+  /* A page left open on the office screen crosses both lines without ever
+     reloading, and the market opens and shuts on the minute. */
   document.addEventListener("visibilitychange", paint);
   document.addEventListener("pricechange", paint);
   window.addEventListener("pageshow", paint);
-  setInterval(paint, 36e5);
+  setInterval(paint, 6e4);
 })();
 </script>
 <!-- /PRICE:stale -->
