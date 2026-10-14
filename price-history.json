@@ -1,6 +1,6 @@
 {
  "schema": "emmert-price-history/1",
- "updated": "2026-10-14T17:50:37.363Z",
+ "updated": "2026-10-14T18:00:37.682Z",
  "days": {
   "2026-08-21": {
    "Corn|August": 4.22,
@@ -503,10 +503,10 @@
    "Corn|January": 4.34,
    "Corn|February": 4.36,
    "Corn|March": 4.44,
-   "Corn|April": 4.47,
-   "Corn|May": 4.49,
-   "Corn|June": 4.55,
-   "Corn|July": 4.55
+   "Corn|April": 4.48,
+   "Corn|May": 4.5,
+   "Corn|June": 4.56,
+   "Corn|July": 4.56
   },
   "2026-10-15": {
    "Corn|October": 4.15,
