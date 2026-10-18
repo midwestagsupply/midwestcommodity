@@ -12,17 +12,17 @@
   "contact": "accounting@midwestagsupply.com",
   "price_note": "Corn futures are delayed at least 10 min. Pricing is provided for informational purposes only.",
   "manual": null,
-  "updated_at": "2026-10-17T12:01:45.901Z",
+  "updated_at": "2026-10-18T12:03:51.538Z",
   "updated_by": "midwestagsupply",
   "basis": -0.85,
   "basisHarvest": -0.72,
   "months": {
     "October": {
-      "basis": -0.75,
+      "basis": -0.7,
       "publish": true
     },
     "November": {
-      "basis": -0.75,
+      "basis": -0.7,
       "publish": true
     },
     "December": {
