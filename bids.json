@@ -1,22 +1,16 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-11-01T04:50:32.258Z",
-  "observed": "2026-11-01T04:50:15.820Z",
-  "pricedAt": "2026-10-31T12:50:17.049Z",
+  "generated": "2026-11-01T05:00:36.084Z",
+  "observed": "2026-11-01T05:00:18.927Z",
+  "pricedAt": "2026-11-01T05:00:18.927Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
     "note": "Cash bids and basis are the posting companies' own numbers, free to use, reproduce and redistribute. No exchange-licensed futures prices are included. Bids are indications, not offers, and change without notice. Call the elevator to confirm before hauling.",
     "contact": "accounting@midwestagsupply.com"
   },
-  "count": 2,
+  "count": 1,
   "bids": [
-    {
-      "commodity": "Corn",
-      "delivery": "October",
-      "basis": -0.75,
-      "cashPrice": 3.73
-    },
     {
       "commodity": "Corn",
       "delivery": "November",
