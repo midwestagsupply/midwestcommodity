@@ -1,6 +1,6 @@
 {
   "_comment": "The only file the office edits by hand until the staff screen is built.",
-  "weekday": "7:30a to 5:00p",
+  "weekday": "7:30a to 7:00p",
   "saturday": "7:00a to 7:00p",
   "sunday": "12:00p to 7:00p",
   "harvest": "7:00a to 7:00p",
@@ -8,8 +8,8 @@
   "closed_today": false,
   "today_override": null,
   "today_date": null,
-  "banner": "**No Storage Available**                               Tues 11/10/26 open 7:30am - 5pm",
+  "banner": "**No Storage Available**                               Wed 11/11/26 open 7:30am - 7pm",
   "hoursnote": null,
-  "updated_at": "2026-11-10T13:16:27.655Z",
+  "updated_at": "2026-11-11T13:30:31.292Z",
   "updated_by": "midwestagsupply"
 }
