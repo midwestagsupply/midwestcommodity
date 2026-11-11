@@ -1,8 +1,8 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-11-11T06:30:34.900Z",
-  "observed": "2026-11-11T06:30:17.910Z",
-  "pricedAt": "2026-11-11T06:30:17.910Z",
+  "generated": "2026-11-11T06:40:32.656Z",
+  "observed": "2026-11-11T06:40:19.457Z",
+  "pricedAt": "2026-11-11T06:40:19.457Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
@@ -15,13 +15,13 @@
       "commodity": "Corn",
       "delivery": "November",
       "basis": -0.75,
-      "cashPrice": 3.74
+      "cashPrice": 3.75
     },
     {
       "commodity": "Corn",
       "delivery": "December",
       "basis": -0.75,
-      "cashPrice": 3.74
+      "cashPrice": 3.75
     }
   ]
 }
