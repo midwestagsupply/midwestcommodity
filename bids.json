@@ -1,8 +1,8 @@
 {
   "schema": "emmert-cash-bids/2",
-  "generated": "2026-11-25T05:00:45.970Z",
-  "observed": "2026-11-25T05:00:25.666Z",
-  "pricedAt": "2026-11-25T05:00:25.666Z",
+  "generated": "2026-11-25T05:10:35.606Z",
+  "observed": "2026-11-25T05:10:15.814Z",
+  "pricedAt": "2026-11-25T05:10:15.814Z",
   "status": "ok",
   "terms": {
     "licence": "CC0-1.0",
